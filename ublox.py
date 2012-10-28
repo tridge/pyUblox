@@ -32,9 +32,11 @@ MSG_CFG_RATE = 0x08
 MSG_CFG_SET_RATE = 0x01
 MSG_CFG_NAV_SETTINGS = 0x24
 
+PORT_DDC    =0
 PORT_SERIAL1=1
 PORT_SERIAL2=2
 PORT_USB    =3
+PORT_SPI    =4
 
 
 class UBloxDescriptor:
@@ -56,7 +58,10 @@ class UBloxDescriptor:
         count = 0
         f1 = list(struct.unpack(self.msg_format, buf[:size1]))
         for i in range(len(self.fields)):
-            ret += '%s=%s, ' % (self.fields[i], f1[i])
+            if isinstance(f1[i], str):
+                ret += '%s="%s", ' % (self.fields[i], f1[i].rstrip('\0'))
+            else:
+                ret += '%s=%s, ' % (self.fields[i], f1[i])
             if self.count_field == self.fields[i]:
                 count = int(f1[i])
         if count == 0:
@@ -79,6 +84,20 @@ class UBloxDescriptor:
         
 
 msg_types = {
+    (CLASS_ACK, MSG_ACK_ACK)    : UBloxDescriptor('ACK_ACK',
+                                                  '<BB', 
+                                                  ['clsID', 'msgID']),
+    (CLASS_ACK, MSG_ACK_NACK)   : UBloxDescriptor('ACK_NACK',
+                                                  '<BB', 
+                                                  ['clsID', 'msgID']),
+    (CLASS_CFG, MSG_CFG_USB)    : UBloxDescriptor('CFG_USB',
+                                                  '<HHHHHH32s32s32s',
+                                                  ['vendorID', 'productID', 'reserved1', 'reserved2', 'powerConsumption',
+                                                   'flags', 'vendorString', 'productString', 'serialNumber']),
+    (CLASS_CFG, MSG_CFG_PRT)    : UBloxDescriptor('CFG_PRT',
+                                                  '<BBHIIHHHH',
+                                                  ['portID', 'reserved0', 'txReady', 'mode', 'baudRate', 'inProtoMask', 
+                                                   'outProtoMask', 'reserved4', 'reserved5']),
     (CLASS_NAV, MSG_NAV_POSLLH) : UBloxDescriptor('NAV_POSLLH',
                                                   '<IiiiiII', 
                                                   ['iTOW', 'Longitude', 'Latitude', 'height', 'hMSL', 'hAcc', 'vAcc']),
@@ -94,18 +113,18 @@ msg_types = {
                                                   ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
                                                    'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
                                                    'numSV', 'reserved2']),
-    (CLASS_NAV, MSG_NAV_SVINFO)  : UBloxDescriptor('NAV_SVINFO',
-                                                   '<IBBH',
-                                                   ['iTOW', 'numCh', 'globalFlags', 'reserved2'],
-                                                   'numCh',
-                                                   '<BBBBBbhi',
-                                                   ['chn', 'svid', 'flags', 'quality', 'cno', 'elev', 'azim', 'prRes']),
-    (CLASS_NAV, MSG_NAV_SVINFO)  : UBloxDescriptor('RXM_SVSI',
-                                                   '<IhBB',
-                                                   ['iTOW', 'week', 'numVis', 'numSV'],
-                                                   'numSV',
-                                                   '<BBhbB',
-                                                   ['svid', 'svFlag', 'azim', 'elev', 'age'])
+    (CLASS_NAV, MSG_NAV_SVINFO) : UBloxDescriptor('NAV_SVINFO',
+                                                  '<IBBH',
+                                                  ['iTOW', 'numCh', 'globalFlags', 'reserved2'],
+                                                  'numCh',
+                                                  '<BBBBBbhi',
+                                                  ['chn', 'svid', 'flags', 'quality', 'cno', 'elev', 'azim', 'prRes']),
+    (CLASS_RXM, MSG_RXM_SVSI)   : UBloxDescriptor('RXM_SVSI',
+                                                  '<IhBB',
+                                                  ['iTOW', 'week', 'numVis', 'numSV'],
+                                                  'numSV',
+                                                  '<BBhbB',
+                                                  ['svid', 'svFlag', 'azim', 'elev', 'age'])
                                                   
 }
 
@@ -202,7 +221,7 @@ class UBlox:
 
     def set_binary(self):
         if not self.read_only:
-            self.dev.write("$PUBX,41,1,0003,0001,38400,0*26\n")
+            self.dev.write("$PUBX,41,1,0001,0001,38400,0*24\n")
 
     def receive_message(self):
         msg = UBloxMessage()
@@ -240,8 +259,11 @@ class UBlox:
         payload = struct.pack('BBHIIHHHH', 3, 0, 0, 0, 0, inMask, outMask, 0, 0)
         self.send_message(CLASS_CFG, MSG_CFG_PRT, payload)
 
-    def configure_poll_port(self):
-        self.send_message(CLASS_CFG, MSG_CFG_PRT, '')
+    def configure_poll_port(self, portID=None):
+        if portID is None:
+            self.send_message(CLASS_CFG, MSG_CFG_PRT, '')
+        else:
+            self.send_message(CLASS_CFG, MSG_CFG_PRT, struct.pack('<B', portID))
 
     def configure_poll_usb(self):
         self.send_message(CLASS_CFG, MSG_CFG_USB, '')

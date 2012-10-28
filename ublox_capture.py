@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import ublox
+import ublox, sys
 
 from optparse import OptionParser
 
@@ -18,7 +18,12 @@ dev = ublox.UBlox(opts.port, baudrate=opts.baudrate)
 dev.set_logfile(opts.log, append=opts.append)
 dev.set_binary()
 dev.configure_poll_port()
-dev.configure_port(port=ublox.PORT_SERIAL1, inMask=1, outMask=1)
+dev.configure_poll_port(ublox.PORT_DDC)
+dev.configure_poll_port(ublox.PORT_SERIAL1)
+dev.configure_poll_port(ublox.PORT_SERIAL2)
+dev.configure_poll_port(ublox.PORT_USB)
+dev.configure_poll_port(ublox.PORT_SPI)
+dev.configure_port(port=ublox.PORT_SERIAL1, inMask=3, outMask=3)
 dev.configure_port(port=ublox.PORT_USB, inMask=1, outMask=1)
 dev.configure_poll_usb()
 dev.configure_solution_rate(rate_ms=200)
@@ -36,5 +41,6 @@ while True:
     msg = dev.receive_message()
     if msg is None:
         break
-    print("GOT MSG: %s" % msg)
+    print(str(msg))
+    sys.stdout.flush()
 
