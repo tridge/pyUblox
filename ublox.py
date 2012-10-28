@@ -163,7 +163,9 @@ class UBloxMessage:
 
     def add(self, bytes):
         self.buf += bytes
-        if not self.valid_so_far():
+        while not self.valid_so_far() and len(self.buf) > 0:
+            self.buf = self.buf[1:]
+        if self.needed_bytes() < 0:
             self.buf = ""
 
     def checksum(self, data=None):
@@ -194,7 +196,7 @@ class UBloxMessage:
         return len(self.buf) >= 8 and self.valid_checksum()
 
 class UBlox:
-    def __init__(self, port, baudrate=38400):
+    def __init__(self, port, baudrate=38400, timeout=0):
         self.serial_device = port
         self.baudrate = baudrate
         if os.path.isfile(self.serial_device):
@@ -202,10 +204,13 @@ class UBlox:
             self.dev = open(self.serial_device)
         else:
             self.dev = serial.Serial(self.serial_device, baudrate=self.baudrate,
-                                     dsrdtr=False, rtscts=False, xonxoff=False)
+                                     dsrdtr=False, rtscts=False, xonxoff=False, timeout=timeout)
             self.read_only = False
         self.logfile = None
         self.log = None
+
+    def close(self):
+        self.dev.close()
 
     def set_logfile(self, logfile, append=False):
         if self.log is not None:
@@ -226,14 +231,15 @@ class UBlox:
     def receive_message(self):
         msg = UBloxMessage()
         while True:
-            b = self.dev.read(1)
+            n = msg.needed_bytes()
+            #print n, len(msg.buf)
+            b = self.dev.read(n)
             if not b:
                 return None
             msg.add(b)
             if self.log is not None:
                 self.log.write(b)
             if msg.valid():
-                #msg.parse()
                 return msg
 
     def send_message(self, msg_class, msg_id, payload):
@@ -255,8 +261,8 @@ class UBlox:
         payload = struct.pack('<BBB', msg_class, msg_id, rate)
         self.send_message(CLASS_CFG, MSG_CFG_SET_RATE, payload)
 
-    def configure_port(self, port=1, inMask=3, outMask=3):
-        payload = struct.pack('BBHIIHHHH', 3, 0, 0, 0, 0, inMask, outMask, 0, 0)
+    def configure_port(self, port=1, inMask=3, outMask=3, mode=2240, baudrate=9600):
+        payload = struct.pack('BBHIIHHHH', port, 0, 0, mode, baudrate, inMask, outMask, 0, 0)
         self.send_message(CLASS_CFG, MSG_CFG_PRT, payload)
 
     def configure_poll_port(self, portID=None):
