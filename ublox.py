@@ -64,6 +64,7 @@ class UBloxDescriptor:
         buf = buf[size1:]
         size2 = struct.calcsize(self.format2)
         for c in range(count):
+            ret += '[ '
             if size2 > len(buf):
                 ret +=  "INVALID_SIZE=%u, " % len(buf)
                 return ret[:-2] + ')'
@@ -71,20 +72,40 @@ class UBloxDescriptor:
             for i in range(len(self.fields2)):
                 ret += '%s=%s, ' % (self.fields2[i], f2[i])
             buf = buf[size2:]
+            ret = ret[:-2] + ' ], '
         if len(buf) != 0:
                 ret +=  "EXTRA_BYTES=%u, " % len(buf)            
         return ret[:-2] + ')'
         
 
 msg_types = {
+    (CLASS_NAV, MSG_NAV_POSLLH) : UBloxDescriptor('NAV_POSLLH',
+                                                  '<IiiiiII', 
+                                                  ['iTOW', 'Longitude', 'Latitude', 'height', 'hMSL', 'hAcc', 'vAcc']),
+    (CLASS_NAV, MSG_NAV_VELNED) : UBloxDescriptor('NAV_VELNED',
+                                                  '<IiiiIIiII', 
+                                                  ['iTOW', 'velN', 'velE', 'velD', 'speed', 'gSpeed', 'heading', 
+                                                   'sAcc', 'cAcc']),
     (CLASS_NAV, MSG_NAV_STATUS) : UBloxDescriptor('NAV_STATUS',
                                                   '<IBBBBII', 
                                                   ['iTOW', 'gpsFix', 'flags', 'fixStat', 'flags2', 'ttff', 'msss']),
-    (CLASS_NAV, MSG_NAV_SOL) : UBloxDescriptor('NAV_SOL',
-                                               '<IihBBiiiIiiiIHBBI',
-                                               ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
-                                                'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 'numSV',
-                                                'reserved2'])
+    (CLASS_NAV, MSG_NAV_SOL)    : UBloxDescriptor('NAV_SOL',
+                                                  '<IihBBiiiIiiiIHBBI',
+                                                  ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
+                                                   'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
+                                                   'numSV', 'reserved2']),
+    (CLASS_NAV, MSG_NAV_SVINFO)  : UBloxDescriptor('NAV_SVINFO',
+                                                   '<IBBH',
+                                                   ['iTOW', 'numCh', 'globalFlags', 'reserved2'],
+                                                   'numCh',
+                                                   '<BBBBBbhi',
+                                                   ['chn', 'svid', 'flags', 'quality', 'cno', 'elev', 'azim', 'prRes']),
+    (CLASS_NAV, MSG_NAV_SVINFO)  : UBloxDescriptor('RXM_SVSI',
+                                                   '<IhBB',
+                                                   ['iTOW', 'week', 'numVis', 'numSV'],
+                                                   'numSV',
+                                                   '<BBhbB',
+                                                   ['svid', 'svFlag', 'azim', 'elev', 'age'])
                                                   
 }
 
@@ -167,13 +188,17 @@ class UBlox:
         self.logfile = None
         self.log = None
 
-    def set_logfile(self, logfile):
+    def set_logfile(self, logfile, append=False):
         if self.log is not None:
             self.log.close()
             self.log = None
         self.logfile = logfile
         if self.logfile is not None:
-            self.log = open(self.logfile, mode='w')
+            if append:
+                mode = 'a'
+            else:
+                mode = 'w'
+            self.log = open(self.logfile, mode=mode)
 
     def set_binary(self):
         if not self.read_only:
