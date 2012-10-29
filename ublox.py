@@ -21,22 +21,31 @@ CLASS_RXM = 0x02
 CLASS_ACK = 0x05
 CLASS_CFG = 0x06
 CLASS_MON = 0x0A
+CLASS_AID = 0x0B
+CLASS_TIM = 0x0D
 
 # ACK messages
 MSG_ACK_NACK = 0x00
 MSG_ACK_ACK = 0x01
 
 # NAV messages
+MSG_NAV_POSECEF= 0x1
 MSG_NAV_POSLLH = 0x2
 MSG_NAV_STATUS = 0x3
 MSG_NAV_SOL    = 0x6
 MSG_NAV_VELNED = 0x12
+MSG_NAV_TIMEGPS = 0x20
+MSG_NAV_CLOCK  = 0x22
 MSG_NAV_SVINFO = 0x30
 
 # RXM messages
 MSG_RXM_RAW    = 0x10
 MSG_RXM_SFRB   = 0x11
 MSG_RXM_SVSI   = 0x20
+MSG_RXM_EPH    = 0x31
+
+# AID messages
+MSG_AID_EPH    = 0x31
 
 # CFG messages
 MSG_CFG_PRT = 0x00
@@ -48,6 +57,10 @@ MSG_CFG_NAV5 = 0x24
 
 # MON messages
 MSG_MON_HW = 0x09
+
+# TIM messages
+MSG_TIM_TP   = 0x01
+MSG_TIM_SVIN = 0x04
 
 # port IDs
 PORT_DDC    =0
@@ -77,7 +90,7 @@ class UBloxDescriptor:
 	size1 = struct.calcsize(self.msg_format)
         buf = msg.buf[6:-2]
         if size1 > len(buf):
-            raise UBloxError("INVALID_SIZE=%u" % len(buf))
+            raise UBloxError("%s INVALID_SIZE1=%u" % (self.name, len(buf)))
         count = 0
         f1 = list(struct.unpack(self.msg_format, buf[:size1]))
         msg.fields = {}
@@ -127,7 +140,7 @@ class UBloxDescriptor:
     def format(self, msg):
 	'''return a formatted string for a message'''
         self.unpack(msg)
-        ret = 'UBloxMessage(%s, ' % self.name
+        ret = self.name + ': '
         for f in self.fields:
             v = msg.fields[f]
             if isinstance(v, str):
@@ -140,7 +153,7 @@ class UBloxDescriptor:
                 v = r[f]
                 ret += '%s=%s, ' % (f, v)
             ret = ret[:-2] + ' ], '
-        return ret[:-2] + ')'
+        return ret[:-2]
         
 
 # list of supported message types.
@@ -174,6 +187,15 @@ msg_types = {
                                                   ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
                                                    'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
                                                    'numSV', 'reserved2']),
+    (CLASS_NAV, MSG_NAV_POSECEF): UBloxDescriptor('NAV_POSECEF',
+                                                  '<IiiiI',
+                                                  ['iTOW', 'ecefX', 'ecefY', 'ecefZ', 'pAcc']),
+    (CLASS_NAV, MSG_NAV_TIMEGPS): UBloxDescriptor('NAV_TIMEGPS',
+                                                  '<IihbBI',
+                                                  ['iTOW', 'fTOW', 'week', 'leapS', 'valid', 'tAcc']),
+    (CLASS_NAV, MSG_NAV_CLOCK)  : UBloxDescriptor('NAV_CLOCK',
+                                                  '<IiiII',
+                                                  ['iTOW', 'clkB', 'clkD', 'tAcc', 'fAcc']),
     (CLASS_NAV, MSG_NAV_SVINFO) : UBloxDescriptor('NAV_SVINFO',
                                                   '<IBBH',
                                                   ['iTOW', 'numCh', 'globalFlags', 'reserved2'],
@@ -186,6 +208,29 @@ msg_types = {
                                                   'numSV',
                                                   '<BBhbB',
                                                   ['svid', 'svFlag', 'azim', 'elev', 'age']),
+    (CLASS_RXM, MSG_RXM_EPH)    : UBloxDescriptor('RXM_EPH',
+                                                  '<II IIIIIIII IIIIIIII IIIIIIII',
+                                                  ['svid', 'how',
+                                                   'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7', 'sf1d8',
+                                                   'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7', 'sf2d8',
+                                                   'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7', 'sf3d8']),
+    (CLASS_AID, MSG_AID_EPH)    : UBloxDescriptor('AID_EPH',
+                                                  '<II IIIIIIII IIIIIIII IIIIIIII',
+                                                  ['svid', 'how',
+                                                   'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7', 'sf1d8',
+                                                   'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7', 'sf2d8',
+                                                   'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7', 'sf3d8']),
+    (CLASS_RXM, MSG_RXM_RAW)   : UBloxDescriptor('RXM_RAW',
+                                                  '<ihBB',
+                                                  ['iTOW', 'week', 'numSV', 'reserved1'],
+                                                  'numSV',
+                                                  '<ddfBbbB',
+                                                  ['cpMes', 'prMes', 'doMes', 'sv', 'mesQI', 'cno', 'lli']),
+    (CLASS_RXM, MSG_RXM_SFRB)  : UBloxDescriptor('RXM_SFRB',
+                                                  '<BBIIIIIIIIII',
+                                                  ['chn', 'svid',
+                                                   'dwrd1', 'dwrd2', 'dwrd3', 'dwrd4', 'dwrd5',
+                                                   'dwrd6', 'dwrd7', 'dwrd8', 'dwrd9', 'dwrd10']),
     (CLASS_CFG, MSG_CFG_NAV5)   : UBloxDescriptor('CFG_NAV5',
                                                   '<HBBiIbBHHHHBBIII',
                                                   ['mask', 'dynModel', 'fixMode', 'fixedAlt', 'fixedAltVar', 'minElev', 
@@ -199,7 +244,14 @@ msg_types = {
 						   'VP11', 'VP12', 'VP13', 'VP14', 'VP15', 'VP16', 'VP17', 'VP18', 'VP19', 
 						   'VP20', 'VP21', 'VP22', 'VP23', 'VP24', 'VP25',
 						   'jamInd', 'reserved3', 'pinInq',
-						   'pullH', 'pullL'])
+						   'pullH', 'pullL']),
+    (CLASS_TIM, MSG_TIM_TP)     : UBloxDescriptor('TIM_TP',
+                                                  '<IIiHBB',
+                                                  ['towMS', 'towSubMS', 'qErr', 'week', 'flags', 'reserved1']),
+    (CLASS_TIM, MSG_TIM_SVIN)   : UBloxDescriptor('TIM_SVIN',
+                                                  '<IiiiIIBBH',
+                                                  ['dur', 'meanX', 'meanY', 'meanZ', 'meanV',
+                                                   'obs', 'valid', 'active', 'reserved1'])
 }
 
 
@@ -217,7 +269,7 @@ class UBloxMessage:
         type = self.msg_type()
         if type in msg_types:
                 return msg_types[type].format(self)
-        return 'UBloxMessage(%s, %u)' % (str(type), self.msg_length())
+        return 'UBloxMessage(UNKNOWN %s, %u)' % (str(type), self.msg_length())
 
     def unpack(self):
 	'''unpack a message'''
@@ -225,7 +277,7 @@ class UBloxMessage:
             raise UBloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s' % str(type))
+            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self.buf)))
         msg_types[type].unpack(self)
 
     def pack(self):
@@ -243,7 +295,7 @@ class UBloxMessage:
             raise UbloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s' % str(type))
+            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self.buf)))
         return msg_types[type].name
 
     def msg_class(self):

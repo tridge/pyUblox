@@ -21,15 +21,21 @@ while True:
     msg = dev.receive_message()
     if msg is None:
         break
-    if types:
+    if types != ['*']:
         matched = False
-        name = msg.name()
+        try:
+            name = msg.name()
+        except ublox.UBloxError as e:
+            continue
         for t in types:
             if fnmatch.fnmatch(name, t):
                 matched = True
                 break
         if not matched:
             continue
-    print(str(msg))
+    try:
+        print(str(msg))
+    except ublox.UBloxError as e:
+        print e.message
     sys.stdout.flush()
 
