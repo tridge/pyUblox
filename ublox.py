@@ -137,6 +137,24 @@ class UBloxError(Exception):
         Exception.__init__(self, msg)
         self.message = msg
 
+class UBloxAttrDict(dict):
+    '''allow dictionary members as attributes'''
+    def __init__(self):
+        dict.__init__(self)
+
+    def __getattr__(self, name):
+        try:
+            return self.__getitem__(name)
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        if self.__dict__.has_key(name):
+            # allow set on normal attributes
+            dict.__setattr__(self, name, value)
+        else:
+            self.__setitem__(name, value)
+
 class UBloxDescriptor:
     '''class used to describe the layout of a UBlox message'''
     def __init__(self, name, msg_format, fields=[], count_field=None, format2=None, fields2=None):
@@ -148,68 +166,71 @@ class UBloxDescriptor:
         self.fields2 = fields2
 	
     def unpack(self, msg):
-	'''unpack a UBloxMessage, creating the .fields and .recs attributes in msg'''
+	'''unpack a UBloxMessage, creating the .fields and ._recs attributes in msg'''
 	size1 = struct.calcsize(self.msg_format)
-        buf = msg.buf[6:-2]
+        buf = msg._buf[6:-2]
         if size1 > len(buf):
             raise UBloxError("%s INVALID_SIZE1=%u" % (self.name, len(buf)))
         count = 0
         f1 = list(struct.unpack(self.msg_format, buf[:size1]))
-        msg.fields = {}
+        msg._fields = {}
         for i in range(len(self.fields)):
-            msg.fields[self.fields[i]] = f1[i]
+            msg._fields[self.fields[i]] = f1[i]
             if self.count_field == self.fields[i]:
                 count = int(f1[i])
         if count == 0:
-            msg.recs = []
+            msg._recs = []
+            msg._unpacked = True
             return
         buf = buf[size1:]
         size2 = struct.calcsize(self.format2)
-        msg.recs = []
+        msg._recs = []
         for c in range(count):
-            r = {}
+            r = UBloxAttrDict()
             if size2 > len(buf):
                 raise UBloxError("INVALID_SIZE=%u, " % len(buf))
             f2 = list(struct.unpack(self.format2, buf[:size2]))
             for i in range(len(self.fields2)):
                 r[self.fields2[i]] = f2[i]
             buf = buf[size2:]
-            msg.recs.append(r)
+            msg._recs.append(r)
         if len(buf) != 0:
             raise UBloxError("EXTRA_BYTES=%u" % len(buf))
+        msg._unpacked = True
 
     def pack(self, msg, msg_class=None, msg_id=None):
-	'''pack a UBloxMessage from the .fields and .recs attributes in msg'''
+	'''pack a UBloxMessage from the .fields and ._recs attributes in msg'''
         f1 = []
         for f in self.fields:
-            f1.append(msg.fields[f])
+            f1.append(msg._fields[f])
         length = struct.calcsize(self.msg_format)
-        if msg.recs:
-            length += len(msg.recs) * struct.calcsize(self.format2)
+        if msg._recs:
+            length += len(msg._recs) * struct.calcsize(self.format2)
         if msg_class is None:
             msg_class = msg.msg_class()
         if msg_id is None:
             msg_id = msg.msg_id()
-        msg.buf = struct.pack('<BBBBH', PREAMBLE1, PREAMBLE2, msg_class, msg_id, length)
-        msg.buf += struct.pack(self.msg_format, *tuple(f1))
-        for r in msg.recs:
+        msg._buf = struct.pack('<BBBBH', PREAMBLE1, PREAMBLE2, msg_class, msg_id, length)
+        msg._buf += struct.pack(self.msg_format, *tuple(f1))
+        for r in msg._recs:
             f2 = []
             for f in self.fields2:
                 f2.append(r[f])
-            msg.buf += struct.pack(self.format2, *tuple(f2))            
-        msg.buf += struct.pack('<BB', *msg.checksum(data=msg.buf[2:]))
+            msg._buf += struct.pack(self.format2, *tuple(f2))            
+        msg._buf += struct.pack('<BB', *msg.checksum(data=msg._buf[2:]))
 
     def format(self, msg):
 	'''return a formatted string for a message'''
-        self.unpack(msg)
+        if not msg._unpacked:
+            self.unpack(msg)
         ret = self.name + ': '
         for f in self.fields:
-            v = msg.fields[f]
+            v = msg._fields[f]
             if isinstance(v, str):
                 ret += '%s="%s", ' % (f, v.rstrip(' \0'))
             else:
                 ret += '%s=%s, ' % (f, v)
-        for r in msg.recs:
+        for r in msg._recs:
             ret += '[ '
             for f in self.fields2:
                 v = r[f]
@@ -324,9 +345,10 @@ msg_types = {
 class UBloxMessage:
     '''UBlox message class - holds a UBX binary message'''
     def __init__(self):
-        self.buf = ""
-        self.fields = None
-        self.recs = None
+        self._buf = ""
+        self._fields = {}
+        self._recs = []
+        self._unpacked = False
 
     def __str__(self):
 	'''format a message as a string'''
@@ -334,8 +356,24 @@ class UBloxMessage:
             return 'UBloxMessage(INVALID)'
         type = self.msg_type()
         if type in msg_types:
-                return msg_types[type].format(self)
+            return msg_types[type].format(self)
         return 'UBloxMessage(UNKNOWN %s, %u)' % (str(type), self.msg_length())
+
+    def __getattr__(self, name):
+        '''allow access to message fields'''
+        try:
+            return self._fields[name]
+        except KeyError:
+            if name == 'recs':
+                return self._recs
+            raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        '''allow access to message fields'''
+        if name.startswith('_'):
+            self.__dict__[name] = value
+        else:
+            self._fields[name] = value
 
     def unpack(self):
 	'''unpack a message'''
@@ -343,7 +381,7 @@ class UBloxMessage:
             raise UBloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self.buf)))
+            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self._buf)))
         msg_types[type].unpack(self)
 
     def pack(self):
@@ -361,16 +399,16 @@ class UBloxMessage:
             raise UbloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self.buf)))
+            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self._buf)))
         return msg_types[type].name
 
     def msg_class(self):
 	'''return the message class'''
-        return ord(self.buf[2])
+        return ord(self._buf[2])
 
     def msg_id(self):
 	'''return the message id within the class'''
-        return ord(self.buf[3])
+        return ord(self._buf[3])
 
     def msg_type(self):
 	'''return the message type tuple (class, id)'''
@@ -378,14 +416,14 @@ class UBloxMessage:
 
     def msg_length(self):
 	'''return the payload length'''
-        (payload_length,) = struct.unpack('<H', self.buf[4:6])
+        (payload_length,) = struct.unpack('<H', self._buf[4:6])
         return payload_length
 
     def valid_so_far(self):
 	'''check if the message is valid so far'''
-        if len(self.buf) > 0 and ord(self.buf[0]) != PREAMBLE1:
+        if len(self._buf) > 0 and ord(self._buf[0]) != PREAMBLE1:
             return False
-        if len(self.buf) > 1 and ord(self.buf[1]) != PREAMBLE2:
+        if len(self._buf) > 1 and ord(self._buf[1]) != PREAMBLE2:
             print("bad pre2")
             return False
         if self.needed_bytes() == 0 and not self.valid():
@@ -395,17 +433,17 @@ class UBloxMessage:
 
     def add(self, bytes):
 	'''add some bytes to a message'''
-        self.buf += bytes
-        while not self.valid_so_far() and len(self.buf) > 0:
+        self._buf += bytes
+        while not self.valid_so_far() and len(self._buf) > 0:
 	    '''handle corrupted streams'''
-            self.buf = self.buf[1:]
+            self._buf = self._buf[1:]
         if self.needed_bytes() < 0:
-            self.buf = ""
+            self._buf = ""
 
     def checksum(self, data=None):
 	'''return a checksum tuple for a message'''
         if data is None:
-            data = self.buf[2:-2]
+            data = self._buf[2:-2]
         cs = 0
         ck_a = 0
         ck_b = 0
@@ -417,19 +455,19 @@ class UBloxMessage:
     def valid_checksum(self):
 	'''check if the checksum is OK'''
         (ck_a, ck_b) = self.checksum()
-        d = self.buf[2:-2]
-        (ck_a2, ck_b2) = struct.unpack('<BB', self.buf[-2:])
+        d = self._buf[2:-2]
+        (ck_a2, ck_b2) = struct.unpack('<BB', self._buf[-2:])
         return ck_a == ck_a2 and ck_b == ck_b2
 
     def needed_bytes(self):
         '''return number of bytes still needed'''
-        if len(self.buf) < 6:
-            return 8 - len(self.buf)
-        return self.msg_length() + 8 - len(self.buf)
+        if len(self._buf) < 6:
+            return 8 - len(self._buf)
+        return self.msg_length() + 8 - len(self._buf)
 
     def valid(self):
 	'''check if a message is valid'''
-        return len(self.buf) >= 8 and self.needed_bytes() == 0 and self.valid_checksum()
+        return len(self._buf) >= 8 and self.needed_bytes() == 0 and self.valid_checksum()
 
 
 class UBlox:
@@ -484,7 +522,7 @@ class UBlox:
         msg = UBloxMessage()
         while True:
             n = msg.needed_bytes()
-            #print n, len(msg.buf)
+            #print n, len(msg._buf)
             b = self.dev.read(n)
             if not b:
                 return None
@@ -500,15 +538,15 @@ class UBlox:
             print("invalid send")
             return
         if not self.read_only:
-            self.dev.write(msg.buf)        
+            self.dev.write(msg._buf)        
 
     def send_message(self, msg_class, msg_id, payload):
 	'''send a ublox message with class, id and payload'''
         msg = UBloxMessage()
-        msg.buf = struct.pack('<BBBBH', 0xb5, 0x62, msg_class, msg_id, len(payload))
-        msg.buf += payload
-        (ck_a, ck_b) = msg.checksum(msg.buf[2:])
-        msg.buf += struct.pack('<BB', ck_a, ck_b)
+        msg._buf = struct.pack('<BBBBH', 0xb5, 0x62, msg_class, msg_id, len(payload))
+        msg._buf += payload
+        (ck_a, ck_b) = msg.checksum(msg._buf[2:])
+        msg._buf += struct.pack('<BB', ck_a, ck_b)
         self.send(msg)
 
     def configure_solution_rate(self, rate_ms=200, nav_rate=1, timeref=0):

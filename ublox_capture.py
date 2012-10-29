@@ -60,7 +60,7 @@ while True:
         sys.stdout.write('.')
         sys.stdout.flush()
     if opts.dynModel != -1 and msg.name() == 'CFG_NAV5':
-        msg.fields['dynModel'] = opts.dynModel
+        msg.dynModel = opts.dynModel
         msg.pack()
         dev.send(msg)
 
