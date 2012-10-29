@@ -311,7 +311,7 @@ class UBloxMessage:
 
     def valid(self):
 	'''check if a message is valid'''
-        return len(self.buf) >= 8 and self.valid_checksum()
+        return len(self.buf) >= 8 and self.needed_bytes() == 0 and self.valid_checksum()
 
 
 class UBlox:
