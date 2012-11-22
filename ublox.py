@@ -323,6 +323,14 @@ msg_types = {
                                                   ['mask', 'dynModel', 'fixMode', 'fixedAlt', 'fixedAltVar', 'minElev', 
                                                    'drLimit', 'pDop', 'tDop', 'pAcc', 'tAcc', 'staticHoldThresh', 
                                                    'dgpsTimeOut', 'reserved2', 'reserved3', 'reserved4']),
+    (CLASS_CFG, MSG_CFG_NAVX5)   : UBloxDescriptor('CFG_NAVX5',
+                                                  '<HHIBBBBBBBBBBHIBBBBBBHII',
+                                                  ['version', 'mask1', 'reserved0', 'reserved1', 'reserved2',
+                                                   'minSVs', 'maxSVs', 'minCNO', 'reserved5', 'iniFix3D', 
+                                                   'reserved6', 'reserved7', 'reserved8', 'wknRollover',
+                                                   'reserved9', 'reserved10', 'reserved11',
+                                                   'usePPP', 'useAOP', 'reserved12', 'reserved13', 
+                                                   'aopOrbMaxErr', 'reserved3', 'reserved4']),
     (CLASS_MON, MSG_MON_HW)     : UBloxDescriptor('MON_HW',
                                                   '<IIIIHHBBBBIBBBBBBBBBBBBBBBBBBBBBBBBBBHIII',
                                                   ['pinSel', 'pinBank', 'pinDir', 'pinVal', 'noisePerMS', 'agcCnt', 'aStatus',
@@ -521,7 +529,7 @@ class UBlox:
 	filesize = self.dev.tell()
 	self.dev.seek(pct*0.01*filesize)
 
-    def receive_message(self):
+    def receive_message(self, ignore_eof=False):
 	'''blocking receive of one ublox message'''
         msg = UBloxMessage()
         while True:
@@ -529,6 +537,9 @@ class UBlox:
             #print n, len(msg._buf)
             b = self.dev.read(n)
             if not b:
+                if ignore_eof:
+                    time.sleep(0.01)
+                    continue
                 return None
             msg.add(b)
             if self.log is not None:
@@ -584,10 +595,3 @@ class UBlox:
         else:
             self.configure_poll(CLASS_CFG, MSG_CFG_PRT, struct.pack('<B', portID))
 
-    def configure_poll_usb(self):
-	'''poll USB configuration'''
-        self.configure_poll(CLASS_CFG, MSG_CFG_USB)
-
-    def configure_poll_nav_settings(self):
-	'''poll nav settings'''
-        self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)

@@ -7,6 +7,7 @@ from optparse import OptionParser
 parser = OptionParser("ublox_show.py [options] <file>")
 parser.add_option("--types", default='*', help="comma separated list of types to show (wildcards allowed)")
 parser.add_option("--seek", type='float', default=0, help="seek percentage to start in log")
+parser.add_option("-f", "--follow", action='store_true', default=False, help="ignore EOF")
 
 (opts, args) = parser.parse_args()
 
@@ -18,7 +19,7 @@ if opts.seek != 0:
 types = opts.types.split(',')
 
 while True:
-    msg = dev.receive_message()
+    msg = dev.receive_message(ignore_eof=opts.follow)
     if msg is None:
         break
     if types != ['*']:
