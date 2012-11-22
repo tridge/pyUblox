@@ -35,7 +35,6 @@ def get_xy(pos):
     bearing = util.gps_bearing(home[0], home[1], pos[0], pos[1])
     x = distance * math.sin(math.radians(bearing))
     y = distance * math.cos(math.radians(bearing))
-    print distance
     return (x,y)
 
 def plot_line(pos1, pos2):
@@ -61,6 +60,6 @@ while True:
             last_pos = pos
         plot_line(last_pos, pos)
         last_pos = pos
-        print pos
 f.show()
-time.sleep(5)
+raw_input('Press enter')
+
