@@ -490,7 +490,7 @@ class UBlox:
 
     port can be a file (for reading only) or a serial device
     '''
-    def __init__(self, port, baudrate=38400, timeout=0):
+    def __init__(self, port, baudrate=115200, timeout=0):
         self.serial_device = port
         self.baudrate = baudrate
         if os.path.isfile(self.serial_device):
@@ -521,10 +521,21 @@ class UBlox:
                 mode = 'w'
             self.log = open(self.logfile, mode=mode)
 
+    def nmea_checksum(self, msg):
+        d = msg[1:]
+        cs = 0
+        for i in d:
+            cs ^= ord(i)
+        return cs
+
+    def send_nmea(self, msg):
+        if not self.read_only:
+            self.dev.write(msg + "*%02X" % self.nmea_checksum(msg))
+
     def set_binary(self):
 	'''put a UBlox into binary mode using a NMEA string'''
         if not self.read_only:
-            self.dev.write("$PUBX,41,1,0001,0001,38400,0*24\n")
+            self.send_nmea("$PUBX,41,1,0001,0001,%u,0" % self.baudrate)
 
     def seek_percent(self, pct):
 	'''seek to the given percentage of a file'''
@@ -577,8 +588,10 @@ class UBlox:
         payload = struct.pack('<BBB', msg_class, msg_id, rate)
         self.send_message(CLASS_CFG, MSG_CFG_SET_RATE, payload)
 
-    def configure_port(self, port=1, inMask=3, outMask=3, mode=2240, baudrate=9600):
+    def configure_port(self, port=1, inMask=3, outMask=3, mode=2240, baudrate=None):
 	'''configure a IO port'''
+        if baudrate is None:
+            baudrate = self.baudrate
         payload = struct.pack('<BBHIIHHHH', port, 0, 0, mode, baudrate, inMask, outMask, 0, 0)
         self.send_message(CLASS_CFG, MSG_CFG_PRT, payload)
 
