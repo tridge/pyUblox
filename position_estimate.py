@@ -4,7 +4,7 @@ estimate receiver position from RXM_RAW uBlox messages
 '''
 
 import ublox
-import ephemeris, satPosition
+import util, ephemeris, satPosition, rangeCorrection
 from ephemeris import eph2clk
 
 from optparse import OptionParser
@@ -23,7 +23,7 @@ dev = ublox.UBlox(filename)
 
 def position_error_fn(p, data):
     '''error function for least squares position fit'''
-    pos = satPosition.PosVector(p[0], p[1], p[2])
+    pos = util.PosVector(p[0], p[1], p[2])
     ret = []
     for d in data:
         satpos, prange = d
@@ -43,16 +43,17 @@ def position_leastsquares(satpos, pranges):
     if not ier in [1, 2, 3, 4]:
         raise RuntimeError("Unable to find solution")
 
-    return satPosition.PosVector(p1[0], p1[1], p1[2])
+    return util.PosVector(p1[0], p1[1], p1[2])
 
-def position_estimate(messages, svid_ephemeris):
+
+def position_estimate(messages, svid_ephemeris, svid_ionospheric):
     '''process raw messages to calculate position
     return the average position over all messages
     '''
 
     speedOfLight = 299792458.0
 
-    needed = [ 'NAV_SOL', 'NAV_CLOCK', 'RXM_RAW', 'NAV_POSECEF' ]
+    needed = [ 'NAV_SOL', 'NAV_CLOCK', 'RXM_RAW', 'NAV_POSECEF', 'RXM_SFRB' ]
     for n in needed:
         if not n in messages:
             return
@@ -63,7 +64,7 @@ def position_estimate(messages, svid_ephemeris):
 
     # get get position the receiver calculated. We use this to check the calculations
     pos       = messages['NAV_POSECEF']
-    ourpos = satPosition.PosVector(pos.ecefX*0.01, pos.ecefY*0.01, pos.ecefZ*0.01)
+    ourpos = util.PosVector(pos.ecefX*0.01, pos.ecefY*0.01, pos.ecefZ*0.01)
 
     # build a hash of SVID to satellite position and pseudoranges
     satpos = {}
@@ -73,6 +74,10 @@ def position_estimate(messages, svid_ephemeris):
         svid = rxm_raw.recs[i].sv
         if not svid in svid_ephemeris:
             # we don't have ephemeris data for this space vehicle
+            continue
+
+        if not svid in svid_ionospheric:
+            # we don't have ionospheric data for this space vehicle
             continue
 
         if rxm_raw.recs[i].mesQI < 7:
@@ -140,8 +145,9 @@ def position_estimate(messages, svid_ephemeris):
 
     
 svid_ephemeris = {}
+svid_ionospheric = {}
 messages = {}
-pos_sum = satPosition.PosVector(0,0,0)
+pos_sum = util.PosVector(0,0,0)
 pos_count = 0
 
 while True:
@@ -149,11 +155,11 @@ while True:
     msg = dev.receive_message()
     if msg is None:
         break
-    if msg.name() in [ 'RXM_RAW', 'NAV_CLOCK', 'NAV_SOL', 'NAV_POSECEF', 'NAV_POSLLH', 'NAV_SVINFO' ]:
+    if msg.name() in [ 'RXM_RAW', 'NAV_CLOCK', 'NAV_SOL', 'NAV_POSECEF', 'NAV_POSLLH', 'NAV_SVINFO', 'RXM_SFRB' ]:
         msg.unpack()
         messages[msg.name()] = msg
     if msg.name() == 'RXM_RAW':
-        pos = position_estimate(messages, svid_ephemeris)
+        pos = position_estimate(messages, svid_ephemeris, svid_ionospheric)
         if pos is not None:
             pos_sum += pos
             pos_count += 1
@@ -164,9 +170,13 @@ while True:
             svid_ephemeris[msg.svid] = ephemeris.EphemerisData(msg)
         except ublox.UBloxError as e:
             print(e)
+    if msg.name() == 'RXM_SFRB':
+        iondata = ephemeris.IonosphericData(msg)
+        if iondata.valid:
+            svid_ionospheric[msg.svid] = iondata
 
 nav_ecef = messages['NAV_POSECEF']
-receiver_ecef = satPosition.PosVector(nav_ecef.ecefX*0.01, nav_ecef.ecefY*0.01, nav_ecef.ecefZ*0.01)
+receiver_ecef = util.PosVector(nav_ecef.ecefX*0.01, nav_ecef.ecefY*0.01, nav_ecef.ecefZ*0.01)
 
 posavg = pos_sum / pos_count
 

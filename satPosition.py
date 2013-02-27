@@ -3,79 +3,7 @@ Functions for calculating satellite position given ephemeris data and time
 Thanks to Paul Riseborough for lots of help with this!
 '''
 
-class PosLLH:
-    '''a class for latitude/longitude/altitude'''
-    def __init__(self, lat, lon, alt):
-        self.lat = lat
-        self.lon = lon
-        self.alt = alt
-
-    def __str__(self):
-        return '(%f, %f, %f)' % (self.lat, self.lon, self.alt)
-
-class PosVector:
-    '''a X/Y/Z vector class, used for ECEF positions'''
-    def __init__(self, X,Y,Z):
-        self.X = X
-        self.Y = Y
-        self.Z = Z
-
-    def __add__(self, v):
-        return PosVector(self.X + v.X,
-                         self.Y + v.Y,
-                         self.Z + v.Z)
-
-    def __mul__(self, v):
-        return PosVector(self.X * v,
-                         self.Y * v,
-                         self.Z * v)
-
-    def __div__(self, v):
-        return PosVector(self.X / v,
-                         self.Y / v,
-                         self.Z / v)
-
-    def distance(self, pos2):
-        import math
-        return math.sqrt((self.X-pos2.X)**2 + 
-                         (self.Y-pos2.Y)**2 + 
-                         (self.Z-pos2.Z)**2)
-
-    def ToLLH(self):
-        '''convert from ECEF to lat/lon/alt
-
-        Thanks to Nicolas Hennion
-        http://www.nicolargo.com/dev/xyz2lla/
-        '''
-        from math import sqrt, pow, cos, sin, pi, atan2
-
-        a = 6378137
-        e = 8.1819190842622e-2
-
-        b = sqrt(pow(a,2) * (1-pow(e,2)))
-        ep = sqrt((pow(a,2)-pow(b,2))/pow(b,2))
-        p = sqrt(pow(self.X,2)+pow(self.Y,2))
-        th = atan2(a*self.Z, b*p)
-        lon = atan2(self.Y, self.X)
-        lat = atan2((self.Z+ep*ep*b*pow(sin(th),3)), (p-e*e*a*pow(cos(th),3)))
-        n = a/sqrt(1-e*e*pow(sin(lat),2))
-        alt = p/cos(lat)-n
-        lat = (lat*180)/pi
-        lon = (lon*180)/pi
-        return PosLLH(lat, lon, alt)
-
-
-def checkTime(time):
-    '''correct the time accounting for beginning or end of week crossover'''
-    half_week       = 302400 # seconds
-    corrTime        = time
-    if time > half_week:
-        corrTime    = time - 2*half_week
-    elif time < -half_week:
-        corrTime    = time + 2*half_week
-    return corrTime
-
-
+import util
 
 def satPosition(ephemeris, transmitTime):
     '''
@@ -105,16 +33,15 @@ def satPosition(ephemeris, transmitTime):
     '''
     from math import sin, cos, sqrt, fmod, atan2, pow
 
-    gpsPi                   = 3.1415926535898  # Definition of Pi used in the GPS coordinate system
     Omegae_dot              = 7.2921151467e-5  # Earth rotation rate, [rad/s]
     GM                      = 3.986005e14      # Earth universal gravitational parameter, [m^3/s^2]
-    speedOfLight            = 299792458
-
+    gpsPi                   = util.gpsPi
+    
     # Don't need to correct for satellite clock as it is a common mode error
     time = transmitTime # - satelliteClockCorrection
 
     # Set time zero to cooincide with the start time for the ephemeris
-    tk = checkTime(time - ephemeris.toe)
+    tk = util.correctWeeklyTime(time - ephemeris.toe)
 
     # Find the ECEF position for the satellite using Keplers equations plus
     # additional harmonics
@@ -181,8 +108,8 @@ def satPosition(ephemeris, transmitTime):
     dts = ephemeris.af0 + ephemeris.af1 * tk + ephemeris.af2 * tk * tk
 
     # relativity correction
-    dts -= 2.0 * sqrt(GM * ephemeris.A) * ephemeris.ecc * sin(E) / (speedOfLight * speedOfLight)
+    dts -= 2.0 * sqrt(GM * ephemeris.A) * ephemeris.ecc * sin(E) / (util.speedOfLight * util.speedOfLight)
     
     #print dts
 
-    return PosVector(X,Y,Z)
+    return util.PosVector(X,Y,Z)
