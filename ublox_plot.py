@@ -3,7 +3,6 @@
 import ublox, sys, fnmatch, os, time
 import numpy, util, math
 import matplotlib
-matplotlib.use('WXAgg')
 from matplotlib import pyplot
 from matplotlib.lines import Line2D
 
@@ -58,6 +57,7 @@ home = None
 last_pos = [None]*len(devs)
 
 while True:
+    got_eof = 0
     for i in range(len(devs)):
         d = devs[i]
         msg = d.receive_message(ignore_eof=False)
@@ -65,6 +65,7 @@ while True:
             if opts.follow:
                 time.sleep(0.001)
                 continue
+            got_eof += 1
             break
         if msg.name() == 'NAV_POSLLH':
             msg.unpack()
@@ -77,6 +78,8 @@ while True:
             if poscount[i] % opts.skip == 0:
                 plot_line(last_pos[i], pos, home, colours[i])
                 last_pos[i] = pos
+    if got_eof == len(devs):
+        break
 f.show()
 raw_input('Press enter')
 
