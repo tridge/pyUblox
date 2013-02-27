@@ -2,7 +2,7 @@ class EphemerisData:
     '''container for parsing a AID_EPH message
     Thanks to Sylvain Munaut <tnt@246tNt.com>
     http://cgit.osmocom.org/cgit/osmocom-lcs/tree/gps.c
-    for the C version of this parser!
+    for the C version of this parser
 
     See IS-GPS-200F.pdf Table 20-III for the field meanings, scaling factors and
     field widths
@@ -23,21 +23,19 @@ class EphemerisData:
         return self.twos_complement(v, nb)
 
     def __init__(self, msg):
-        import time
         from math import pow
 
         self._msg = msg
         self.svid = msg.svid
         self.how = msg.how
-        self.timereceived = time.time()
 
-        self.week_no    = self.GET_FIELD_U(msg.sf1d0, 10, 14)
-        self.code_on_l2 = self.GET_FIELD_U(msg.sf1d0,  2, 12)
-        self.sv_ura     = self.GET_FIELD_U(msg.sf1d0,  4,  8)
-        self.sv_health  = self.GET_FIELD_U(msg.sf1d0,  6,  2)
-        self.l2_p_flag  = self.GET_FIELD_U(msg.sf1d1,  1, 23)
-        self.t_gd       = self.GET_FIELD_S(msg.sf1d4,  8,  0)
-        self.iodc       = (self.GET_FIELD_U(msg.sf1d0,  2,  0) << 8) | self.GET_FIELD_U(msg.sf1d5,  8, 16)
+        week_no    = self.GET_FIELD_U(msg.sf1d0, 10, 14)
+        code_on_l2 = self.GET_FIELD_U(msg.sf1d0,  2, 12)
+        sv_ura     = self.GET_FIELD_U(msg.sf1d0,  4,  8)
+        sv_health  = self.GET_FIELD_U(msg.sf1d0,  6,  2)
+        l2_p_flag  = self.GET_FIELD_U(msg.sf1d1,  1, 23)
+        t_gd       = self.GET_FIELD_S(msg.sf1d4,  8,  0)
+        iodc       = (self.GET_FIELD_U(msg.sf1d0,  2,  0) << 8) | self.GET_FIELD_U(msg.sf1d5,  8, 16)
 
         t_oc       = self.GET_FIELD_U(msg.sf1d5, 16,  0)
         a_f2       = self.GET_FIELD_S(msg.sf1d6,  8, 16)
@@ -73,6 +71,7 @@ class EphemerisData:
         gpsPi          = 3.1415926535898
 
         # now form variables in radians, meters and seconds etc
+        self.Tgd       = t_gd    * pow(2, -31)
         self.A         = pow(a_powhalf * pow(2,-19), 2.0)
         self.cic       = c_ic    * pow(2, -29)
         self.cis       = c_is    * pow(2, -29)
@@ -98,9 +97,50 @@ class EphemerisData:
 
         iode1           = self.GET_FIELD_U(msg.sf2d0,  8, 16)
         iode2           = self.GET_FIELD_U(msg.sf3d7,  8, 16)
-        self.valid = (iode1 == iode2) and (iode1 == (self.iodc & 0xff))
+        self.valid = (iode1 == iode2) and (iode1 == (iodc & 0xff))
         if not self.valid:
             print("Ephemeris for %u is invalid" % self.svid)
+
+
+class IonosphericData:
+    '''decode ionospheric data from a RXM_SFRB subframe 4 message
+    see http://home-2.worldonline.nl/~samsvl/nav2eu.htm
+    '''
+
+    def extract_uint8(self, v, b):
+        return (v >> (8*(3-b))) & 255
+
+    def extract_int8(self, v, b):
+        value = self.extract_uint8(v, b)
+        if value > 127:
+            value -= 256
+        return value
+        
+    def __init__(self, msg):
+        '''parse assuming a subframe 4 page 18 message containing ionospheric data'''
+        self.id     = (msg.dwrd2 >> 2) & 0x7
+        self.pageID = self.extract_uint8(msg.dwrd3, 1) & 0x3F
+        self.a0     = self.extract_int8(msg.dwrd3, 2) * pow(2, -30)
+        self.a1     = self.extract_int8(msg.dwrd3, 3) * pow(2, -27)
+        self.a2     = self.extract_int8(msg.dwrd4, 1) * pow(2, -24)
+        self.a3     = self.extract_int8(msg.dwrd4, 2) * pow(2, -24)
+        self.b0     = self.extract_int8(msg.dwrd4, 3) * pow(2, 11)
+        self.b1     = self.extract_int8(msg.dwrd5, 1) * pow(2, 14)
+        self.b2     = self.extract_int8(msg.dwrd5, 2) * pow(2, 16)
+        self.b3     = self.extract_int8(msg.dwrd5, 3) * pow(2, 16)
+        self.leap   = self.extract_uint8(msg.dwrd9, 1)
+
+        # this checks if we have the right subframe
+        self.valid  = (self.pageID == 56 and self.id == 4)
+        '''
+        if self.valid:
+            print("a0=%g a1=%g a2=%g a3=%g b0=%g b1=%g b2=%g b3=%g leap=%u" % (
+                self.a0, self.a1, self.a2, self.a3,
+                self.b0, self.b1, self.b2, self.b3,
+                self.leap))
+                '''
+                  
+
 
 def eph2clk(gtime, ephemeris):
     '''correct a gps time of week for the satellite clock bias.
