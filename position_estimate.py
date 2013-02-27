@@ -49,7 +49,9 @@ pos_sum = satPosition.PosVector(0,0,0)
 pos_count = 0
 
 def position_estimate(messages, svid_ephemeris):
-    '''process raw messages to calculate position'''
+    '''process raw messages to calculate position
+    return the average position over all messages
+    '''
 
     speedOfLight = 299792458.0
 
@@ -99,7 +101,7 @@ def position_estimate(messages, svid_ephemeris):
         receiver_time_bias = -nav_clock.clkB*1.0e-9 + 0.000020035
 
         # and the amount that bias has drifted between the time in NAV_CLOCK and the time in RXM_RAW
-        receiver_time_bias2 = ((rxm_raw.iTOW*1.0e-3 - nav_clock.iTOW*1.0e-3) * nav_clock.clkD) * 1.0e-9
+        receiver_time_bias2 = -((rxm_raw.iTOW*1.0e-3 - nav_clock.iTOW*1.0e-3) * nav_clock.clkD) * 1.0e-9
 
         # add up the various clock errors
         total_clock_error = sat_clock_error + receiver_time_bias + receiver_time_bias2
@@ -143,10 +145,12 @@ def position_estimate(messages, svid_ephemeris):
 
         posavg = pos_sum / pos_count
     
-        print("poserr=%f pos=%s %s" % (
+        print("poserr=%f/%f pos=%s %s" % (
             poserror,
+            posavg.distance(ourpos),
             posestimate.ToLLH(),
             posavg.ToLLH()))
+    return posavg
 
     
 svid_ephemeris = {}
@@ -161,7 +165,7 @@ while True:
         msg.unpack()
         messages[msg.name()] = msg
     if msg.name() == 'RXM_RAW':
-        position_estimate(messages, svid_ephemeris)
+        posavg = position_estimate(messages, svid_ephemeris)
     if msg.name() == 'AID_EPH':
         try:
             msg.unpack()
@@ -170,3 +174,4 @@ while True:
         except ublox.UBloxError as e:
             print(e)
 
+print("Average position: %s" % posavg.ToLLH())
