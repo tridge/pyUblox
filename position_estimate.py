@@ -95,7 +95,7 @@ def position_estimate(messages, svid_ephemeris):
         sat_clock_error = eph2clk(transmitTime, ephemeris)
 
         # calculate receiver clock bias
-        receiver_time_bias = -nav_clock.clkB*1.0e-9 + 0.000020035
+        receiver_time_bias = -nav_clock.clkB*1.0e-9 + 0.00001985
 
         # and the amount that bias has drifted between the time in NAV_CLOCK and the time in RXM_RAW
         receiver_time_bias2 = -((rxm_raw.iTOW*1.0e-3 - nav_clock.iTOW*1.0e-3) * nav_clock.clkD) * 1.0e-9
