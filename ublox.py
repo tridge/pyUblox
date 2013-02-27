@@ -121,6 +121,7 @@ MSG_MON_VER   = 0x04
 
 # TIM messages
 MSG_TIM_TP   = 0x01
+MSG_TIM_TM2  = 0x03
 MSG_TIM_SVIN = 0x04
 MSG_TIM_VRFY = 0x06
 
@@ -297,15 +298,15 @@ msg_types = {
     (CLASS_RXM, MSG_RXM_EPH)    : UBloxDescriptor('RXM_EPH',
                                                   '<II IIIIIIII IIIIIIII IIIIIIII',
                                                   ['svid', 'how',
-                                                   'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7', 'sf1d8',
-                                                   'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7', 'sf2d8',
-                                                   'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7', 'sf3d8']),
+                                                   'sf1d0', 'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7',
+                                                   'sf2d0', 'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7',
+                                                   'sf3d0', 'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7']),
     (CLASS_AID, MSG_AID_EPH)    : UBloxDescriptor('AID_EPH',
                                                   '<II IIIIIIII IIIIIIII IIIIIIII',
                                                   ['svid', 'how',
-                                                   'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7', 'sf1d8',
-                                                   'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7', 'sf2d8',
-                                                   'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7', 'sf3d8']),
+                                                   'sf1d0', 'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7',
+                                                   'sf2d0', 'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7',
+                                                   'sf3d0', 'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7']),
     (CLASS_RXM, MSG_RXM_RAW)   : UBloxDescriptor('RXM_RAW',
                                                   '<ihBB',
                                                   ['iTOW', 'week', 'numSV', 'reserved1'],
@@ -350,6 +351,10 @@ msg_types = {
     (CLASS_TIM, MSG_TIM_TP)     : UBloxDescriptor('TIM_TP',
                                                   '<IIiHBB',
                                                   ['towMS', 'towSubMS', 'qErr', 'week', 'flags', 'reserved1']),
+    (CLASS_TIM, MSG_TIM_TM2)    : UBloxDescriptor('TIM_TM2',
+                                                  '<BBHHHIIIII',
+                                                  ['ch', 'flags', 'count', 'wnR', 'wnF', 'towMsR', 'towSubMsR', 
+                                                   'towMsF', 'towSubMsF', 'accEst']),
     (CLASS_TIM, MSG_TIM_SVIN)   : UBloxDescriptor('TIM_SVIN',
                                                   '<IiiiIIBBH',
                                                   ['dur', 'meanX', 'meanY', 'meanZ', 'meanV',
@@ -548,7 +553,6 @@ class UBlox:
         msg = UBloxMessage()
         while True:
             n = msg.needed_bytes()
-            #print n, len(msg._buf)
             b = self.dev.read(n)
             if not b:
                 if ignore_eof:
