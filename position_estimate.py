@@ -45,9 +45,6 @@ def position_leastsquares(satpos, pranges):
 
     return satPosition.PosVector(p1[0], p1[1], p1[2])
 
-pos_sum = satPosition.PosVector(0,0,0)
-pos_count = 0
-
 def position_estimate(messages, svid_ephemeris):
     '''process raw messages to calculate position
     return the average position over all messages
@@ -132,29 +129,20 @@ def position_estimate(messages, svid_ephemeris):
             total_clock_error))
 
     # if we got at least 4 satellites then calculate a position
-    if len(satpos) >= 4:
-        posestimate = position_leastsquares(satpos, pranges)
-        poserror = posestimate.distance(ourpos)
-
-        # also calculate average position over all samples
-        global pos_sum
-        global pos_count
+    if len(satpos) < 4:
+        return None
     
-        pos_sum += posestimate
-        pos_count += 1
+    posestimate = position_leastsquares(satpos, pranges)
+    poserror = posestimate.distance(ourpos)
 
-        posavg = pos_sum / pos_count
-    
-        print("poserr=%f/%f pos=%s %s" % (
-            poserror,
-            posavg.distance(ourpos),
-            posestimate.ToLLH(),
-            posavg.ToLLH()))
-    return posavg
+    print("poserr=%f pos=%s" % (poserror, posestimate.ToLLH()))
+    return posestimate
 
     
 svid_ephemeris = {}
 messages = {}
+pos_sum = satPosition.PosVector(0,0,0)
+pos_count = 0
 
 while True:
     '''process the ublox messages, extracting the ones we need for the position'''
@@ -165,7 +153,10 @@ while True:
         msg.unpack()
         messages[msg.name()] = msg
     if msg.name() == 'RXM_RAW':
-        posavg = position_estimate(messages, svid_ephemeris)
+        pos = position_estimate(messages, svid_ephemeris)
+        if pos is not None:
+            pos_sum += pos
+            pos_count += 1
     if msg.name() == 'AID_EPH':
         try:
             msg.unpack()
@@ -174,4 +165,12 @@ while True:
         except ublox.UBloxError as e:
             print(e)
 
-print("Average position: %s" % posavg.ToLLH())
+nav_ecef = messages['NAV_POSECEF']
+receiver_ecef = satPosition.PosVector(nav_ecef.ecefX*0.01, nav_ecef.ecefY*0.01, nav_ecef.ecefZ*0.01)
+
+posavg = pos_sum / pos_count
+
+print("Average position: %s  Receiver position: %s error=%f" % (
+    posavg.ToLLH(),
+    receiver_ecef.ToLLH(),
+    posavg.distance(receiver_ecef)))
