@@ -53,10 +53,15 @@ class PosLLH:
 
 class PosVector:
     '''a X/Y/Z vector class, used for ECEF positions'''
-    def __init__(self, X,Y,Z):
+    def __init__(self, X,Y,Z, extra=None):
         self.X = X
         self.Y = Y
         self.Z = Z
+	# allow for some extra information to be carried in the vector
+	self.extra = extra
+
+    def __str__(self):
+        return '(%f, %f, %f)' % (self.X, self.Y, self.Z)
 
     def __add__(self, v):
         return PosVector(self.X + v.X,
@@ -113,3 +118,8 @@ def correctWeeklyTime(time):
         corrTime    = time + 2*half_week
     return corrTime
 
+
+def gpsTimeToTime(week, sec):
+    '''convert GPS week and TOW to a time in seconds since 1970'''
+    epoch = 86400*(10*365 + (1980-1969)/4 + 1 + 6 - 2)
+    return epoch + 86400*7*week + sec
