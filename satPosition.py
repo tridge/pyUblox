@@ -5,111 +5,106 @@ Thanks to Paul Riseborough for lots of help with this!
 
 import util
 
-def satPosition(ephemeris, transmitTime):
+def satPosition(satinfo, svid, transmitTime):
+    '''calculate satellite position
+    Based upon http://home-2.worldonline.nl/~samsvl/stdalone.pas
     '''
-    % Required inputs
-    %
-    % Name                  Type	Dimension	Description, units
-    %
-    % ephemeris.A           double  1           Semimajor axis, m
-    % ephemeris.cic         double  1           Inclination - amplitude of cosine, rad
-    % ephemeris.cis         double  1           Inclination - amplitude of sine, rad
-    % ephemeris.crc         double  1           Orbit radius - amplitude of cosine, m
-    % ephemeris.crs         double  1           Orbit radius - amplitude of sine, m
-    % ephemeris.cuc         double  1           Argument of latitude - amplitude of cosine, rad
-    % ephemeris.cus         double  1           Argument of latitude - amplitude of sine, rad
-    % ephemeris.deltaN      double  1           Mean motion difference, rad/sec
-    % ephemeris.ecc         double  1           Eccentricity
-    % ephemeris.i0          double  1           Inclination angle at reference time, rad
-    % ephemeris.idot        double  1           Rate of inclination, rad/sec
-    % ephemeris.M0          double  1           Mean anomaly of reference time, rad
-    % ephemeris.omega       double  1           Argument of perigee, rad
-    % ephemeris.omega_dot   double  1           Rate of right ascension, rad/sec
-    % ephemeris.omega0      double  1           Right ascension, rad
-    % ephemeris.toe         double  1           Reference time for ephemeris, sec
-    % transmitTime          double  1           Time of message transmission, sec
+    from math import sqrt, atan, sin, cos
     
-    % Define Constants
-    '''
-    from math import sin, cos, sqrt, fmod, atan2, pow
+    eph = satinfo.ephemeris[svid]
 
-    Omegae_dot              = 7.2921151467e-5  # Earth rotation rate, [rad/s]
-    GM                      = 3.986005e14      # Earth universal gravitational parameter, [m^3/s^2]
-    gpsPi                   = util.gpsPi
-    
-    # Don't need to correct for satellite clock as it is a common mode error
-    time = transmitTime # - satelliteClockCorrection
+    # WGS 84 value of earth's univ. grav. par.
+    mu = 3.986005E+14
 
-    # Set time zero to cooincide with the start time for the ephemeris
-    tk = util.correctWeeklyTime(time - ephemeris.toe)
+    # WGS 84 value of earth's rotation rate
+    Wedot = 7.2921151467E-5
 
-    # Find the ECEF position for the satellite using Keplers equations plus
-    # additional harmonics
+    # relativistic correction term constant
+    F = -4.442807633E-10
 
-    # Semi-major axis
-    a = ephemeris.A
+    pi = util.gpsPi
 
-    # Initial mean motion
-    n0 = sqrt(GM / pow(a,3))
+    Crs = eph.crs
+    dn  = eph.deltaN
+    M0  = eph.M0
+    Cuc = eph.cuc
+    ec  = eph.ecc
+    Cus = eph.cus
+    A   = eph.A
+    Toe = eph.toe
+    Cic = eph.cic
+    W0  = eph.omega0
+    Cis = eph.cis
+    i0  = eph.i0
+    Crc = eph.crc
+    w   = eph.omega
+    Wdot = eph.omega_dot
+    idot = eph.idot
 
-    # Mean motion
-    n = n0 + ephemeris.deltaN
+    T = transmitTime - Toe
+    if T > 302400:
+        T = T - 604800
+    if T < -302400:
+        T = T + 604800
 
-    # Mean anomaly
-    M = ephemeris.M0 + n * tk
-    # Reduce mean anomaly to between 0 and 360 deg
-    M = fmod(M + 2*gpsPi, 2*gpsPi)
+    n0 = sqrt(mu / (A*A*A))
+    n = n0 + dn
 
-    # Initial guess of eccentric anomaly
+    M = M0 + n*T
     E = M
-
-    # Iteratively compute eccentric anomaly
-    for ii in range(10):
-        E_old = E
-        E = M + ephemeris.ecc * sin(E)
-        dE = fmod(E - E_old, 2*gpsPi)
-    
-        if abs(dE) < 1.0e-12:
-            # Necessary precision is reached, exit from the loop
+    for ii in range(20):
+        Eold = E
+        E = M + ec * sin(E)
+        if abs(E - Eold) < 1.0e-12:
             break
 
-    # Wrap eccentric anomaly to between 0 and 360 deg
-    E = fmod(E + 2*gpsPi, 2*gpsPi)
+    snu = sqrt(1 - ec*ec) * sin(E) / (1 - ec*cos(E))
+    cnu = (cos(E) - ec) / (1 - ec*cos(E))
+    if cnu == 0:
+        nu = pi/2 * snu / abs(snu)
+    elif (snu == 0) and (cnu > 0):
+        nu = 0
+    elif (snu == 0) and (cnu < 0):
+        nu = pi
+    else:
+        nu = atan(snu/cnu)
+        if cnu < 0:
+            nu += pi * snu / abs(snu)
 
-    # Calculate the true anomaly
-    nu = atan2(sqrt(1 - pow(ephemeris.ecc,2)) * sin(E), cos(E)-ephemeris.ecc)
+    phi = nu + w
 
-    # Compute angle phi
-    phi = nu + ephemeris.omega
-    # Reduce phi to between 0 and 360 deg
-    phi = fmod(phi, 2*gpsPi)
+    du = Cuc*cos(2*phi) + Cus*sin(2*phi)
+    dr = Crc*cos(2*phi) + Crs*sin(2*phi)
+    di = Cic*cos(2*phi) + Cis*sin(2*phi)
 
-    # Correct argument of latitude
-    u = phi + ephemeris.cuc * cos(2*phi) + ephemeris.cus * sin(2*phi)
+    u = phi + du
+    r = A*(1 - ec*cos(E)) + dr
+    i = i0 + idot*T +di
 
-    # Correct radius
-    r = a * (1 - ephemeris.ecc*cos(E)) + ephemeris.crc * cos(2*phi) + ephemeris.crs * sin(2*phi)
+    Xdash = r*cos(u)
+    Ydash = r*sin(u)
 
-    # Correct inclination
-    i = ephemeris.i0 + ephemeris.idot * tk + ephemeris.cic * cos(2*phi) + ephemeris.cis * sin(2*phi)
+    Wc = W0 + (Wdot - Wedot)*T - Wedot*Toe
 
-    # Compute the angle between the ascending node and the Greenwich meridian
-    Omega = ephemeris.omega0 + (ephemeris.omega_dot - Omegae_dot)*tk - Omegae_dot * ephemeris.toe
-    # Reduce to between 0 and 360 deg
-    Omega = fmod(Omega + 2*gpsPi, 2*gpsPi)
+    satpos = util.PosVector(
+        Xdash*cos(Wc) - Ydash*cos(i)*sin(Wc),
+        Xdash*sin(Wc) + Ydash*cos(i)*cos(Wc),
+        Ydash*sin(i))
 
-    # Compute satellite coordinates
-    X = cos(u)*r * cos(Omega) - sin(u)*r * cos(i)*sin(Omega)
-    Y = cos(u)*r * sin(Omega) + sin(u)*r * cos(i)*cos(Omega)
-    Z = sin(u)*r * sin(i)
+    # relativistic correction term
+    satpos.extra = F * ec * sqrt(A) * sin(E)
 
-    # do we need this?
-    tk = transmitTime - ephemeris.toc
-    dts = ephemeris.af0 + ephemeris.af1 * tk + ephemeris.af2 * tk * tk
+    return satpos
 
-    # relativity correction
-    dts -= 2.0 * sqrt(GM * ephemeris.A) * ephemeris.ecc * sin(E) / (util.speedOfLight * util.speedOfLight)
+def correctPosition(satpos, time_of_flight):
+    '''correct the satellite position for the time it took the message to get to the receiver'''
+    from math import sin, cos
     
-    #print dts
-
-    return util.PosVector(X,Y,Z)
+    # WGS-84 earth rotation rate
+    We = 7.292115E-5
+    
+    alpha = time_of_flight * We
+    X = satpos.X
+    Y = satpos.Y
+    satpos.X = X * cos(alpha) + Y * sin(alpha)
+    satpos.Y = -X * sin(alpha) + Y * cos(alpha)
