@@ -98,8 +98,6 @@ class EphemerisData:
         iode1           = self.GET_FIELD_U(msg.sf2d0,  8, 16)
         iode2           = self.GET_FIELD_U(msg.sf3d7,  8, 16)
         self.valid = (iode1 == iode2) and (iode1 == (iodc & 0xff))
-        if not self.valid:
-            print("Ephemeris for %u is invalid" % self.svid)
 
 
 class IonosphericData:
@@ -140,15 +138,56 @@ class IonosphericData:
                 self.leap))
                 '''
                   
+class SatelliteData:
+    '''class to hold satellite data from AID_EPH, RXM_SFRB and RXM_SVSI messages'''
+    def __init__(self):
+        self.ephemeris = {}
+        self.azimuth = {}
+        self.elevation = {}
+        self.ionospheric = {}
 
+    def valid(self, svid):
+        '''return true if we have all data for a given svid'''
+        if not svid in self.ephemeris:
+            return False
+        if not svid in self.azimuth:
+            return False
+        if not svid in self.elevation:
+            return False
+        if not svid in self.ionospheric:
+            return False
+        return True
 
-def eph2clk(gtime, ephemeris):
-    '''correct a gps time of week for the satellite clock bias.
-    Thanks to rtklib for the equations
-    '''
-    t = gtime - ephemeris.toc
-    for i in range(2):
-        t -= ephemeris.af0 + ephemeris.af1 * t + ephemeris.af2 * t * t
-    t2 = ephemeris.af0 + ephemeris.af1 * t + ephemeris.af2 * t * t
-    return t2
+    def add_AID_EPH(self, msg):
+        '''add some AID_EPH ephemeris data'''
+        eph = EphemerisData(msg)
+        if eph.valid:
+            self.ephemeris[eph.svid] = eph
 
+    def add_RXM_SFRB(self, msg):
+        '''add some RXM_SFRB subframe data'''
+        ion = IonosphericData(msg)
+        if ion.valid:
+            self.ionospheric[msg.svid] = ion
+            
+    def add_RXM_SVSI(self, msg):
+        '''add some RXM_SVSI data'''
+        for i in range(msg.numSV):
+            if msg.recs[i].svFlag & 1:
+                # not available
+                continue
+            if msg.recs[i].age == 255:
+                # not current
+                continue
+            self.azimuth[msg.recs[i].svid] = msg.recs[i].azim
+            self.elevation[msg.recs[i].svid] = msg.recs[i].elev
+            
+            
+    def add_message(self, msg):
+        '''add information from ublox messages'''
+        if msg.name() == 'AID_EPH':
+            self.add_AID_EPH(msg)
+        elif msg.name() == 'RXM_SFRB':
+            self.add_RXM_SFRB(msg)
+        elif msg.name() == 'RXM_SVSI':
+            self.add_RXM_SVSI(msg)
