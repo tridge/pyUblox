@@ -1,3 +1,5 @@
+import util
+
 class EphemerisData:
     '''container for parsing a AID_EPH message
     Thanks to Sylvain Munaut <tnt@246tNt.com>
@@ -139,20 +141,29 @@ class IonosphericData:
                 '''
                   
 class SatelliteData:
-    '''class to hold satellite data from AID_EPH, RXM_SFRB and RXM_SVSI messages'''
+    '''class to hold satellite data from AID_EPH, RXM_SFRB messages plus calculated
+       positions and error terms'''
     def __init__(self):
         self.ephemeris = {}
         self.azimuth = {}
         self.elevation = {}
         self.ionospheric = {}
+        self.lastpos = util.PosVector(0,0,0)
+        self.receiver_clock_error = 0
+        self.reset()
+
+    def reset(self):
+        self.satpos = {}
+        self.prMeasured = {}
+        self.ionospheric_correction = {}
+        self.tropospheric_correction = {}
+        self.satellite_clock_error = {}
+        self.prCorrected = {}
+        
 
     def valid(self, svid):
         '''return true if we have all data for a given svid'''
         if not svid in self.ephemeris:
-            return False
-        if not svid in self.azimuth:
-            return False
-        if not svid in self.elevation:
             return False
         if not svid in self.ionospheric:
             return False
@@ -170,24 +181,10 @@ class SatelliteData:
         if ion.valid:
             self.ionospheric[msg.svid] = ion
             
-    def add_RXM_SVSI(self, msg):
-        '''add some RXM_SVSI data'''
-        for i in range(msg.numSV):
-            if msg.recs[i].svFlag & 1:
-                # not available
-                continue
-            if msg.recs[i].age == 255:
-                # not current
-                continue
-            self.azimuth[msg.recs[i].svid] = msg.recs[i].azim
-            self.elevation[msg.recs[i].svid] = msg.recs[i].elev
-            
-            
     def add_message(self, msg):
         '''add information from ublox messages'''
         if msg.name() == 'AID_EPH':
             self.add_AID_EPH(msg)
         elif msg.name() == 'RXM_SFRB':
             self.add_RXM_SFRB(msg)
-        elif msg.name() == 'RXM_SVSI':
-            self.add_RXM_SVSI(msg)
+

@@ -8,6 +8,8 @@ import util
 def satPosition(satinfo, svid, transmitTime):
     '''calculate satellite position
     Based upon http://home-2.worldonline.nl/~samsvl/stdalone.pas
+
+    This fills in the satpos element of the satinfo object
     '''
     from math import sqrt, atan, sin, cos
     
@@ -94,9 +96,9 @@ def satPosition(satinfo, svid, transmitTime):
     # relativistic correction term
     satpos.extra = F * ec * sqrt(A) * sin(E)
 
-    return satpos
+    satinfo.satpos[svid] = satpos
 
-def correctPosition(satpos, time_of_flight):
+def correctPosition(satinfo, svid, time_of_flight):
     '''correct the satellite position for the time it took the message to get to the receiver'''
     from math import sin, cos
     
@@ -104,7 +106,74 @@ def correctPosition(satpos, time_of_flight):
     We = 7.292115E-5
     
     alpha = time_of_flight * We
+    satpos = satinfo.satpos[svid]
     X = satpos.X
     Y = satpos.Y
     satpos.X = X * cos(alpha) + Y * sin(alpha)
     satpos.Y = -X * sin(alpha) + Y * cos(alpha)
+
+
+def calculateAzimuthElevation(satinfo, svid, ourpos):
+    '''calculate Azimuth and elevation for a sattelite given our position in ECEF
+    based upon calcAzEl() in
+    http://home-2.worldonline.nl/~samsvl/stdalone.pas
+    '''
+
+    from math import sqrt, atan, degrees
+    import numpy
+    
+    x = ourpos.X
+    y = ourpos.Y
+    z = ourpos.Z
+
+    satpos = satinfo.satpos[svid]
+    Xs = [satpos.X, satpos.Y, satpos.Z]
+    Xu = [ourpos.X, ourpos.Y, ourpos.Z]
+    
+    p = sqrt(x*x + y*y)
+    pi = util.gpsPi
+    if p == 0:
+        satinfo.azimuth[svid] = 0
+        satinfo.elevation[svid] = 0
+        return
+
+    R = sqrt(x*x + y*y + z*z)
+
+    e = numpy.ndarray((3,3))
+
+    e[0,0] = - y / p
+    e[0,1] = + x / p
+    e[0,2] = 0.0
+    e[1,0] = - x*z / (p*R)
+    e[1,1] = - y*z / (p*R)
+    e[1,2] = p / R
+    e[2,0] = x / R
+    e[2,1] = y / R
+    e[2,2] = z / R
+
+    d = numpy.ndarray((3))
+
+    for k in range(3):
+        d[k] = 0.0
+        for i in range(3):
+            d[k] = d[k] + (Xs[i] - Xu[i]) * e[k,i]
+
+    s = d[2] / sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
+    if s == 1.0:
+        El = 0.5 * pi
+    else:
+        El = atan(s / sqrt(1.0 - s*s))
+
+    if d[1] == 0.0 and d[0] > 0.0:
+        Az = 0.5 * pi
+    elif d[1] == 0.0 and d[0] < 0.0:
+        Az = 1.5 * pi
+    else:
+        Az = atan(d[0] / d[1])
+        if d[1] < 0.0:
+            Az = Az + pi
+        elif d[1] > 0.0 and d[0] < 0.0:
+            Az = Az + 2.0 * pi
+
+    satinfo.azimuth[svid] = degrees(Az)
+    satinfo.elevation[svid] = degrees(El)
