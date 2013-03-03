@@ -531,7 +531,7 @@ class UBlox:
         self.baudrate = baudrate
         if os.path.isfile(self.serial_device):
             self.read_only = True
-            self.dev = open(self.serial_device)
+            self.dev = open(self.serial_device, mode='rb')
         else:
             import serial
             self.dev = serial.Serial(self.serial_device, baudrate=self.baudrate,
