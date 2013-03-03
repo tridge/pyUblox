@@ -526,7 +526,6 @@ class UBlox:
     port can be a file (for reading only) or a serial device
     '''
     def __init__(self, port, baudrate=115200, timeout=0):
-        import serial
 
         self.serial_device = port
         self.baudrate = baudrate
@@ -534,6 +533,7 @@ class UBlox:
             self.read_only = True
             self.dev = open(self.serial_device)
         else:
+            import serial
             self.dev = serial.Serial(self.serial_device, baudrate=self.baudrate,
                                      dsrdtr=False, rtscts=False, xonxoff=False, timeout=timeout)
             self.read_only = False
