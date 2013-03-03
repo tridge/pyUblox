@@ -555,9 +555,9 @@ class UBlox:
         self.logfile = logfile
         if self.logfile is not None:
             if append:
-                mode = 'a'
+                mode = 'ab'
             else:
-                mode = 'w'
+                mode = 'wb'
             self.log = open(self.logfile, mode=mode)
 
     def set_preferred_dynamic_model(self, model):
