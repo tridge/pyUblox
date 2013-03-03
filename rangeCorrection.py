@@ -13,7 +13,7 @@ def sv_clock_correction(satinfo, svid, transmitTime, Trel):
     eph = satinfo.ephemeris[svid]
     
     T = util.correctWeeklyTime(transmitTime - toc)
-    print 'svid=%u T=%f transmitTime=%f toc=%f' % (svid, T, transmitTime, toc)
+    #print 'svid=%u T=%f transmitTime=%f toc=%f' % (svid, T, transmitTime, toc)
     F = -4.442807633E-10
     ec = 1.0
     

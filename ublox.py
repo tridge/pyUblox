@@ -132,6 +132,17 @@ PORT_SERIAL2=2
 PORT_USB    =3
 PORT_SPI    =4
 
+# dynamic models
+DYNAMIC_MODEL_PORTABLE   = 0
+DYNAMIC_MODEL_STATIONARY = 2
+DYNAMIC_MODEL_PEDESTRIAN = 3
+DYNAMIC_MODEL_AUTOMOTIVE = 4
+DYNAMIC_MODEL_SEA        = 5
+DYNAMIC_MODEL_AIRBORNE1G = 6
+DYNAMIC_MODEL_AIRBORNE2G = 7
+DYNAMIC_MODEL_AIRBORNE4G = 8
+
+
 class UBloxError(Exception):
     '''Ublox error class'''
     def __init__(self, msg):
@@ -283,6 +294,12 @@ msg_types = {
     (CLASS_NAV, MSG_NAV_CLOCK)  : UBloxDescriptor('NAV_CLOCK',
                                                   '<IiiII',
                                                   ['iTOW', 'clkB', 'clkD', 'tAcc', 'fAcc']),
+    (CLASS_NAV, MSG_NAV_DGPS)   : UBloxDescriptor('NAV_DGPS',
+                                                  '<IihhBBH',
+                                                  ['iTOW', 'age', 'baseId', 'baseHealth', 'numCh', 'status', 'reserved1'],
+                                                  'numCh',
+                                                  '<BBHff',
+                                                  ['svid', 'flags', 'ageC', 'prc', 'prrc']),
     (CLASS_NAV, MSG_NAV_SVINFO) : UBloxDescriptor('NAV_SVINFO',
                                                   '<IBBH',
                                                   ['iTOW', 'numCh', 'globalFlags', 'reserved2'],
@@ -507,6 +524,8 @@ class UBlox:
             self.read_only = False
         self.logfile = None
         self.log = None
+        self.preferred_dynamic_model = None
+        self.preferred_usePPP = None
 
     def close(self):
 	'''close the device'''
@@ -525,6 +544,20 @@ class UBlox:
             else:
                 mode = 'w'
             self.log = open(self.logfile, mode=mode)
+
+    def set_preferred_dynamic_model(self, model):
+        '''set the preferred dynamic model for receiver'''
+        self.preferred_dynamic_model = model
+        if model is not None:
+            self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
+
+    def set_preferred_usePPP(self, usePPP):
+        '''set the preferred usePPP setting for the receiver'''
+        if usePPP is None:
+            self.preferred_usePPP = None
+            return
+        self.preferred_usePPP = int(usePPP)
+        self.configure_poll(CLASS_CFG, MSG_CFG_NAVX5)
 
     def nmea_checksum(self, msg):
         d = msg[1:]
@@ -548,6 +581,25 @@ class UBlox:
 	filesize = self.dev.tell()
 	self.dev.seek(pct*0.01*filesize)
 
+    def special_handling(self, msg):
+        '''handle automatic configuration changes'''
+        if msg.name == 'CFG_NAV5' and self.preferred_dynamic_model is not None:
+            msg.unpack()
+            if msg.dynModel != self.preferred_dynamic_model:
+                msg.dynModel = self.preferred_dynamic_model
+                msg.pack()
+                self.send(msg)
+                self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
+        if msg.name() == 'CFG_NAVX5' and self.preferred_usePPP is not None:
+            msg.unpack()
+            if msg.usePPP != self.preferred_usePPP:
+                msg.usePPP = self.preferred_usePPP
+                msg.mask = 1<<13
+                msg.pack()
+                self.send(msg)
+                self.configure_poll(CLASS_CFG, MSG_CFG_NAVX5)
+
+
     def receive_message(self, ignore_eof=False):
 	'''blocking receive of one ublox message'''
         msg = UBloxMessage()
@@ -563,6 +615,7 @@ class UBlox:
             if self.log is not None:
                 self.log.write(b)
             if msg.valid():
+                self.special_handling(msg)
                 return msg
 
     def send(self, msg):

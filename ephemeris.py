@@ -132,6 +132,7 @@ class IonosphericData:
 
         # this checks if we have the right subframe
         self.valid  = (self.pageID == 56 and self.id == 4)
+        #print("id=%u pageID=%u" % (self.id, self.pageID))
         '''
         if self.valid:
             print("a0=%g a1=%g a2=%g a3=%g b0=%g b1=%g b2=%g b3=%g leap=%u" % (
@@ -140,51 +141,3 @@ class IonosphericData:
                 self.leap))
                 '''
                   
-class SatelliteData:
-    '''class to hold satellite data from AID_EPH, RXM_SFRB messages plus calculated
-       positions and error terms'''
-    def __init__(self):
-        self.ephemeris = {}
-        self.azimuth = {}
-        self.elevation = {}
-        self.ionospheric = {}
-        self.lastpos = util.PosVector(0,0,0)
-        self.receiver_clock_error = 0
-        self.reset()
-
-    def reset(self):
-        self.satpos = {}
-        self.prMeasured = {}
-        self.ionospheric_correction = {}
-        self.tropospheric_correction = {}
-        self.satellite_clock_error = {}
-        self.prCorrected = {}
-        
-
-    def valid(self, svid):
-        '''return true if we have all data for a given svid'''
-        if not svid in self.ephemeris:
-            return False
-        if not svid in self.ionospheric:
-            return False
-        return True
-
-    def add_AID_EPH(self, msg):
-        '''add some AID_EPH ephemeris data'''
-        eph = EphemerisData(msg)
-        if eph.valid:
-            self.ephemeris[eph.svid] = eph
-
-    def add_RXM_SFRB(self, msg):
-        '''add some RXM_SFRB subframe data'''
-        ion = IonosphericData(msg)
-        if ion.valid:
-            self.ionospheric[msg.svid] = ion
-            
-    def add_message(self, msg):
-        '''add information from ublox messages'''
-        if msg.name() == 'AID_EPH':
-            self.add_AID_EPH(msg)
-        elif msg.name() == 'RXM_SFRB':
-            self.add_RXM_SFRB(msg)
-

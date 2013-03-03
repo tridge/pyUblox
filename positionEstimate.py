@@ -1,19 +1,9 @@
+'''
+Single point position estimate from raw receiver data
+'''
+
 import util, satPosition, rangeCorrection
 
-class rawPseudoRange:
-    '''class to hold raw range information from a receiver'''
-    def __init__(self, gps_week, time_of_week):
-        # time of week in seconds, including fractions of a second
-        self.time_of_week = time_of_week;
-        self.gps_week     = gps_week
-        self.prMeasured   = {}
-        self.quality      = {}
-
-    def add(self, svid, prMes, quality):
-        '''add a pseudo range for a given svid'''
-        self.prMeasured[svid] = prMes
-        self.quality[svid]    = quality
-        
 
 def positionErrorFunction(p, data):
     '''error function for least squares position fit'''
@@ -48,20 +38,24 @@ def positionLeastSquares(satinfo):
     return newpos
 
 
-def positionEstimate(satinfo, raw):
+def positionEstimate(satinfo):
     '''process raw messages to calculate position
     '''
-    satinfo.reset();
+
+    raw = satinfo.raw
+    satinfo.reset()
 
     for svid in raw.prMeasured:
 
         if not satinfo.valid(svid):
             # we don't have ephemeris data for this space vehicle
+            #print("not valid")
             continue
 
         if raw.quality[svid] < 7:
             # for now we will ignore raw data that isn't very high quality. It would be
             # better to do a weighting in the least squares calculation
+            #print("low quality")
             continue
 
         # get the ephemeris and pseudo-range for this space vehicle
