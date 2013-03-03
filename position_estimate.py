@@ -3,7 +3,7 @@
 estimate receiver position from RXM_RAW uBlox messages
 '''
 
-import ublox
+import ublox, sys
 import util, ephemeris, positionEstimate, satelliteData
 
 from optparse import OptionParser

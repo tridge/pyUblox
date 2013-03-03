@@ -7,7 +7,6 @@ Released under GNU GPL version 3 or later
 '''
 
 import struct
-import serial
 from datetime import datetime
 import time, os
 
@@ -513,6 +512,8 @@ class UBlox:
     port can be a file (for reading only) or a serial device
     '''
     def __init__(self, port, baudrate=115200, timeout=0):
+        import serial
+
         self.serial_device = port
         self.baudrate = baudrate
         if os.path.isfile(self.serial_device):
