@@ -33,6 +33,7 @@ MSG_ACK_ACK = 0x01
 MSG_NAV_POSECEF   = 0x1
 MSG_NAV_POSLLH    = 0x2
 MSG_NAV_STATUS    = 0x3
+MSG_NAV_DOP       = 0x4
 MSG_NAV_SOL       = 0x6
 MSG_NAV_VELNED    = 0x12
 MSG_NAV_VELECEF   = 0x11
@@ -273,6 +274,9 @@ msg_types = {
                                                   '<IiiiIIiII', 
                                                   ['iTOW', 'velN', 'velE', 'velD', 'speed', 'gSpeed', 'heading', 
                                                    'sAcc', 'cAcc']),
+    (CLASS_NAV, MSG_NAV_DOP)    : UBloxDescriptor('NAV_DOP',
+                                                  '<IHHHHHHH', 
+                                                  ['iTOW', 'gDOP', 'pDOP', 'tDOP', 'vDOP', 'hDOP', 'nDOP', 'eDOP']),
     (CLASS_NAV, MSG_NAV_STATUS) : UBloxDescriptor('NAV_STATUS',
                                                   '<IBBBBII', 
                                                   ['iTOW', 'gpsFix', 'flags', 'fixStat', 'flags2', 'ttff', 'msss']),
@@ -281,6 +285,13 @@ msg_types = {
                                                   ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
                                                    'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
                                                    'numSV', 'reserved2']),
+    (CLASS_NAV, MSG_NAV_SBAS)   : UBloxDescriptor('NAV_SBAS',
+                                                  '<IBBbBBBBB',
+                                                  ['iTOW', 'geo', 'mode', 'sys', 'service', 'cnt', 'reserved01', 'reserved02', 'reserved03' ],
+                                                  'cnt',
+                                                  'BBBBBBhHh',
+                                                  ['svid', 'flags', 'udre', 'svSys', 'svService', 'reserved1',
+                                                   'prc', 'reserved2', 'ic']),
     (CLASS_NAV, MSG_NAV_POSECEF): UBloxDescriptor('NAV_POSECEF',
                                                   '<IiiiI',
                                                   ['iTOW', 'ecefX', 'ecefY', 'ecefZ', 'pAcc']),
@@ -290,6 +301,9 @@ msg_types = {
     (CLASS_NAV, MSG_NAV_TIMEGPS): UBloxDescriptor('NAV_TIMEGPS',
                                                   '<IihbBI',
                                                   ['iTOW', 'fTOW', 'week', 'leapS', 'valid', 'tAcc']),
+    (CLASS_NAV, MSG_NAV_TIMEUTC): UBloxDescriptor('NAV_TIMEUTC',
+                                                  '<IIiHBBBBBB',
+                                                  ['iTOW', 'tAcc', 'nano', 'year', 'month', 'day', 'hour', 'min', 'sec', 'valid']),
     (CLASS_NAV, MSG_NAV_CLOCK)  : UBloxDescriptor('NAV_CLOCK',
                                                   '<IiiII',
                                                   ['iTOW', 'clkB', 'clkD', 'tAcc', 'fAcc']),

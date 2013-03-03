@@ -25,17 +25,19 @@ def position_estimate(messages, satinfo):
     '''
 
     # get get position the receiver calculated. We use this to check the calculations
-    pos = messages['NAV_POSECEF']
-    ourpos = util.PosVector(pos.ecefX*0.01, pos.ecefY*0.01, pos.ecefZ*0.01)
 
     pos = positionEstimate.positionEstimate(satinfo)
     if pos is None:
         # not enough information for a fix
         return
     
-    poserror = pos.distance(ourpos)
-
-    print("poserr=%f pos=%s" % (poserror, pos.ToLLH()))
+    if 'NAV_POSECEF' in messages:
+        posecef = messages['NAV_POSECEF']
+        ourpos = util.PosVector(posecef.ecefX*0.01, posecef.ecefY*0.01, posecef.ecefZ*0.01)
+        posdiff = pos.distance(ourpos)
+        print("posdiff=%f pos=%s" % (posdiff, pos.ToLLH()))
+    else:
+        print("pos=%s" % (pos.ToLLH()))
     return pos
 
 
