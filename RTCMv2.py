@@ -1,4 +1,4 @@
-import struct
+import struct, util
 
 class RTCMBits:
     '''RTCMv2 bit packer. Thanks to Michael Oborne for the C# code this was based on
@@ -14,6 +14,9 @@ class RTCMBits:
         self.parity29 = 0
         self.parity30 = 0
         self.reset()
+        self.error_history = {}
+        self.history_length = 20
+        self.last_time_of_week = 0
 
     def reset(self):
         '''reset at the end of a message'''
@@ -111,7 +114,18 @@ class RTCMBits:
         self.reset()
 
         tow = satinfo.raw.time_of_week
+        deltat = tow - self.last_time_of_week
+        self.last_time_of_week = tow
         msgsatcnt = len(satinfo.prCorrected)
+
+        for svid in satinfo.prCorrected:
+            err = satinfo.geometricRange[svid] - \
+                (satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight + satinfo.receiver_clock_error*util.speedOfLight)
+            if not svid in self.error_history:
+                self.error_history[svid] = []
+            self.error_history[svid].append(err)
+            if len(self.error_history[svid]) > self.history_length:
+                self.error_history[svid].pop(0)
 
         msgsatid = []
         msgprc   = []
@@ -119,9 +133,8 @@ class RTCMBits:
         msgiode  = []
         for svid in satinfo.prCorrected:
             msgsatid.append(svid)
-            err = (satinfo.geometricRange[svid] - satinfo.prMeasured[svid]) + \
-                satinfo.ionospheric_correction[svid] + satinfo.tropospheric_correction[svid]
-            err = int((satinfo.prCorrected[svid] - satinfo.prMeasured[svid])/0.02)
+            err = sum(self.error_history[svid])/float(len(self.error_history[svid]))
+            err = int(err / 0.02)
             msgprc.append(err)
             msgprrc.append(0)
             msgiode.append(satinfo.ephemeris[svid].iode)
