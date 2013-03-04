@@ -160,13 +160,11 @@ while True:
     if msg is not None:
         handle_device1(msg)
         last_msg1_time = time.time()
-        sys.stdout.write('.')
 
     msg = dev2.receive_message()
     if msg is not None:
         handle_device2(msg)
         last_msg2_time = time.time()
-        sys.stdout.write('+')
 
     if opts.reopen and time.time() > last_msg1_time + 5:
         dev1.close()
