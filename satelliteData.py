@@ -23,13 +23,19 @@ class SatelliteData:
         self.ephemeris = {}
         self.azimuth = {}
         self.elevation = {}
-        self.ionospheric = {}
         self.lastpos = util.PosVector(0,0,0)
         self.receiver_clock_error = 0
         self.rtcm_bits = None
         self.last_rtcm_msg3 = util.gpsTimeToTime(0,0)
         self.reset()
         self.average_position = None
+        self.position_sum = util.PosVector(0,0,0)
+        self.position_count = 0
+        self.reference_position = None
+        self.receiver_position = None
+        self.ionospheric = util.loadObject('ionospheric.dat')
+        if self.ionospheric is None:
+            self.ionospheric = {}
 
     def reset(self):
         self.satpos = {}
@@ -58,6 +64,7 @@ class SatelliteData:
         ion = ephemeris.IonosphericData(msg)
         if ion.valid:
             self.ionospheric[msg.svid] = ion
+            util.saveObject('ionospheric.dat', self.ionospheric)
 
     def add_RXM_RAW(self, msg):
         '''add some RXM_RAW pseudo range data'''
@@ -66,6 +73,10 @@ class SatelliteData:
             self.raw.add(msg.recs[i].sv,
                          msg.recs[i].prMes,
                          msg.recs[i].mesQI)
+
+    def add_NAV_POSECEF(self, msg):
+        '''add a NAV_POSECEF message'''
+        self.receiver_position = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
             
     def add_message(self, msg):
         '''add information from ublox messages'''
@@ -75,4 +86,6 @@ class SatelliteData:
             self.add_RXM_SFRB(msg)
         elif msg.name() == 'RXM_RAW':
             self.add_RXM_RAW(msg)
+        elif msg.name() == 'NAV_POSECEF':
+            self.add_NAV_POSECEF(msg)
 

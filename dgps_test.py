@@ -121,12 +121,14 @@ last_msg2_time = time.time()
 
 messages = {}
 satinfo = satelliteData.SatelliteData()
+if opts.reference:
+    satinfo.reference_position = util.ParseLLH(opts.reference).ToECEF()
 
 def handle_device1(msg):
     '''handle message from reference GPS'''
     global messages, satinfo
     
-    if msg.name() in [ 'RXM_RAW', 'NAV_POSECEF', 'RXM_SFRB', 'RXM_RAW', 'AID_EPH' ]:
+    if msg.name() in [ 'RXM_RAW', 'NAV_POSECEF', 'RXM_SFRB', 'RXM_RAW', 'AID_EPH', 'NAV_POSECEF' ]:
         try:
             msg.unpack()
             messages[msg.name()] = msg

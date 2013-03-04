@@ -159,3 +159,22 @@ def gpsTimeToTime(week, sec):
     '''convert GPS week and TOW to a time in seconds since 1970'''
     epoch = 86400*(10*365 + (1980-1969)/4 + 1 + 6 - 2)
     return epoch + 86400*7*week + sec
+
+def saveObject(filename, object):
+    '''save an object to a file'''
+    import pickle
+    h = open(filename, mode='wb')
+    pickle.dump(object, h)
+    h.close()
+
+
+def loadObject(filename):
+    '''load an object from a file'''
+    import pickle
+    try:
+        h = open(filename, mode='rb')
+	obj = pickle.load(h)
+	h.close()
+	return obj
+    except Exception as e:
+        return None
