@@ -16,6 +16,7 @@ parser.add_option("--baudrate", type='int',
                   help="serial baud rate", default=115200)
 parser.add_option("--log1", help="log file1", default=None)
 parser.add_option("--log2", help="log file2", default=None)
+parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 
 
@@ -139,14 +140,17 @@ def handle_device1(msg):
 
 def handle_device2(msg):
     '''handle message from rover GPS'''
-    if msg.name() == "NAV_DGPS":
-        msg.unpack()
-        print(msg)
     if msg.name() == "NAV_POSECEF":
         msg.unpack()
         pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
         if satinfo.average_position is not None:
-            print("RECV2 error: %f pos=%s" % (pos.distance(satinfo.average_position), pos.ToLLH()))
+            print("RECV1<->RECV2 error: %6.2f pos=%s" % (pos.distance(satinfo.receiver_position), satinfo.receiver_position.ToLLH()))
+            print("RECV2<->AVG   error: %6.2f pos=%s" % (pos.distance(satinfo.average_position), pos.ToLLH()))
+            print("AVG<->RECV1   error: %6.2f pos=%s" % (satinfo.receiver_position.distance(satinfo.average_position), satinfo.average_position.ToLLH()))
+            print("AVG<->RECV2   error: %6.2f pos=%s" % (satinfo.average_position.distance(pos), satinfo.average_position.ToLLH()))
+            if satinfo.reference_position is not None:
+                print("REF<->RECV2   error: %6.2f pos=%s" % (satinfo.reference_position.distance(pos), satinfo.reference_position.ToLLH()))
+                
 
 while True:
     # get a message from the reference GPS

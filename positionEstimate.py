@@ -109,12 +109,16 @@ def positionEstimate(satinfo):
 
     posestimate = positionLeastSquares(satinfo)
 
-    if satinfo.average_position is None:
-        satinfo.average_position = posestimate
-    else:
-        satinfo.average_position = satinfo.average_position * 0.99 + posestimate * 0.01
+    satinfo.position_sum += posestimate
+    satinfo.position_count += 1
+    satinfo.average_position = satinfo.position_sum / satinfo.position_count
 
     for svid in satinfo.prCorrected:
-        satinfo.geometricRange[svid] = satinfo.average_position.distance(satinfo.satpos[svid])
+        if satinfo.reference_position is not None:
+            satinfo.geometricRange[svid] = satinfo.reference_position.distance(satinfo.satpos[svid])
+        elif satinfo.receiver_position is not None:
+            satinfo.geometricRange[svid] = satinfo.receiver_position.distance(satinfo.satpos[svid])
+        else:
+            satinfo.geometricRange[svid] = satinfo.average_position.distance(satinfo.satpos[svid])
 
     return posestimate

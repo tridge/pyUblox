@@ -51,6 +51,34 @@ class PosLLH:
     def __str__(self):
         return '(%f, %f, %f)' % (self.lat, self.lon, self.alt)
 
+    def ToECEF(self):
+        '''convert from lat/lon/alt to ECEF
+
+        Thanks to Nicolas Hennion
+        http://www.nicolargo.com/dev/xyz2lla/
+        '''
+        from math import sqrt, pow, sin, cos
+	a = 6378137.0
+	e = 8.1819190842622e-2
+	pi = gpsPi
+	
+	lat = self.lat*(pi/180.0)
+	lon = self.lon*(pi/180.0)
+	alt = self.alt
+
+	n = a/sqrt((1.0-pow(e,2)*pow(sin(lat),2)))
+	x= (n+alt)*cos(lat)*cos(lon)
+	y= (n+alt)*cos(lat)*sin(lon)
+	z= (n*(1-pow(e,2))+alt)*sin(lat)
+
+	return PosVector(x, y, z)
+
+    def distance(self, pos):
+        '''return distance to another position'''
+        if isinstance(pos, PosLLH):
+            pos = pos.ToECEF()
+        return self.ToECEF().distance(pos)
+
 class PosVector:
     '''a X/Y/Z vector class, used for ECEF positions'''
     def __init__(self, X,Y,Z, extra=None):
@@ -80,6 +108,8 @@ class PosVector:
 
     def distance(self, pos2):
         import math
+        if isinstance(pos2, PosLLH):
+            pos2 = pos2.ToECEF()
         return math.sqrt((self.X-pos2.X)**2 + 
                          (self.Y-pos2.Y)**2 + 
                          (self.Z-pos2.Z)**2)
@@ -107,6 +137,12 @@ class PosVector:
         lon = (lon*180)/pi
         return PosLLH(lat, lon, alt)
 
+def ParseLLH(pos_string):
+    '''parse a lat,lon,alt string and return a PosLLH'''
+    a = pos_string.split(',')
+    if len(a) != 3:
+        return None
+    return PosLLH(float(a[0]), float(a[1]), float(a[2]))
 
 def correctWeeklyTime(time):
     '''correct the time accounting for beginning or end of week crossover'''
