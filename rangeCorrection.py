@@ -30,6 +30,9 @@ def ionospheric_correction(satinfo,
     based on ionocorr() from http://home-2.worldonline.nl/~samsvl/stdalone.pas
     '''
     from math import radians, cos, sin
+
+    if not svid in satinfo.ionospheric:
+        return 0
     
     llh = posestimate_ecef.ToLLH()
     pi = util.gpsPi

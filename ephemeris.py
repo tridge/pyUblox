@@ -97,9 +97,11 @@ class EphemerisData:
         self.af1 = a_f1 * pow(2, -43)
         self.af2 = a_f2 * pow(2, -55)
 
+
         iode1           = self.GET_FIELD_U(msg.sf2d0,  8, 16)
         iode2           = self.GET_FIELD_U(msg.sf3d7,  8, 16)
         self.valid = (iode1 == iode2) and (iode1 == (iodc & 0xff))
+        self.iode = iode1
 
 
 class IonosphericData:
@@ -118,26 +120,42 @@ class IonosphericData:
         
     def __init__(self, msg):
         '''parse assuming a subframe 4 page 18 message containing ionospheric data'''
-        self.id     = (msg.dwrd2 >> 2) & 0x7
-        self.pageID = self.extract_uint8(msg.dwrd3, 1) & 0x3F
-        self.a0     = self.extract_int8(msg.dwrd3, 2) * pow(2, -30)
-        self.a1     = self.extract_int8(msg.dwrd3, 3) * pow(2, -27)
-        self.a2     = self.extract_int8(msg.dwrd4, 1) * pow(2, -24)
-        self.a3     = self.extract_int8(msg.dwrd4, 2) * pow(2, -24)
-        self.b0     = self.extract_int8(msg.dwrd4, 3) * pow(2, 11)
-        self.b1     = self.extract_int8(msg.dwrd5, 1) * pow(2, 14)
-        self.b2     = self.extract_int8(msg.dwrd5, 2) * pow(2, 16)
-        self.b3     = self.extract_int8(msg.dwrd5, 3) * pow(2, 16)
+        words = [msg.dwrd1, msg.dwrd2, msg.dwrd3, msg.dwrd4, msg.dwrd5, 
+                 msg.dwrd6, msg.dwrd7, msg.dwrd8, msg.dwrd9, msg.dwrd10 ]
+        for i in range(10):
+            words[i] = (words[i] & 0xffffff)
+        words[0] &= 0xff0000
+        if not words[0] in [0x8b0000, 0x740000]:
+            #print("words[0]=0x%06x" % words[0])
+            self.valid = False
+            return
+        if words[0] == 0x740000:
+            print("SFRB invert")
+            for i in range(10):
+                words[i] ^= 0xffffff
+
+        self.svid = msg.svid
+        self.id = (words[1] >> 2) & 0x07
+        self.pageID = (words[2] & 0x3f0000) >> 16
+
+        self.a0     = self.extract_int8(words[2], 2) * pow(2, -30)
+        self.a1     = self.extract_int8(words[2], 3) * pow(2, -27)
+        self.a2     = self.extract_int8(words[3], 1) * pow(2, -24)
+        self.a3     = self.extract_int8(words[3], 2) * pow(2, -24)
+        self.b0     = self.extract_int8(words[3], 3) * pow(2, 11)
+        self.b1     = self.extract_int8(words[4], 1) * pow(2, 14)
+        self.b2     = self.extract_int8(words[4], 2) * pow(2, 16)
+        self.b3     = self.extract_int8(words[4], 3) * pow(2, 16)
         self.leap   = self.extract_uint8(msg.dwrd9, 1)
 
         # this checks if we have the right subframe
         self.valid  = (self.pageID == 56 and self.id == 4)
-        #print("id=%u pageID=%u" % (self.id, self.pageID))
-        '''
+        #print("svid=%u id=%u pageID=%u" % (self.svid, self.id, self.pageID))
+#        '''
         if self.valid:
             print("a0=%g a1=%g a2=%g a3=%g b0=%g b1=%g b2=%g b3=%g leap=%u" % (
                 self.a0, self.a1, self.a2, self.a3,
                 self.b0, self.b1, self.b2, self.b3,
                 self.leap))
-                '''
+#                '''
                   

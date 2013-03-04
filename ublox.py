@@ -190,13 +190,19 @@ class UBloxDescriptor:
             msg._fields[self.fields[i]] = f1[i]
             if self.count_field == self.fields[i]:
                 count = int(f1[i])
+        if self.count_field == '_remaining':
+            count = -1
+        buf = buf[size1:]
         if count == 0:
             msg._recs = []
             msg._unpacked = True
+            if len(buf) != 0:
+                raise UBloxError("EXTRA_BYTES=%u" % len(buf))
             return
-        buf = buf[size1:]
         size2 = struct.calcsize(self.format2)
         msg._recs = []
+        if count == -1:
+            count = len(buf) / size2
         for c in range(count):
             r = UBloxAttrDict()
             if size2 > len(buf):
@@ -378,6 +384,13 @@ msg_types = {
                                                   '<IIIIHHHBB',
                                                   ['tskRun', 'tskSchd', 'tskOvrr', 'tskReg', 'stack',
                                                    'stackSize', 'CPUIdle', 'flySly', 'ptlSly']),
+    (CLASS_MON, MSG_MON_VER)    : UBloxDescriptor('MON_VER',
+                                                  '<30s10s',
+                                                  # this doesn't match the spec. Very strange
+                                                  ['swVersion', 'hwVersion'],
+                                                  '_remaining',
+                                                  '30s',
+                                                  ['extension']),
     (CLASS_TIM, MSG_TIM_TP)     : UBloxDescriptor('TIM_TP',
                                                   '<IIiHBB',
                                                   ['towMS', 'towSubMS', 'qErr', 'week', 'flags', 'reserved1']),
@@ -541,6 +554,7 @@ class UBlox:
         self.log = None
         self.preferred_dynamic_model = None
         self.preferred_usePPP = None
+        self.preferred_dgps_timeout = None
 
     def close(self):
 	'''close the device'''
@@ -564,6 +578,12 @@ class UBlox:
         '''set the preferred dynamic model for receiver'''
         self.preferred_dynamic_model = model
         if model is not None:
+            self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
+
+    def set_preferred_dgps_timeout(self, timeout):
+        '''set the preferred DGPS timeout for receiver'''
+        self.preferred_dgps_timeout = timeout
+        if timeout is not None:
             self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
 
     def set_preferred_usePPP(self, usePPP):
@@ -598,13 +618,24 @@ class UBlox:
 
     def special_handling(self, msg):
         '''handle automatic configuration changes'''
-        if msg.name == 'CFG_NAV5' and self.preferred_dynamic_model is not None:
+        if msg.name() == 'CFG_NAV5':
             msg.unpack()
-            if msg.dynModel != self.preferred_dynamic_model:
+            sendit = False
+            pollit = False
+            if self.preferred_dynamic_model is not None and msg.dynModel != self.preferred_dynamic_model:
                 msg.dynModel = self.preferred_dynamic_model
+                sendit = True
+                pollit = True
+            if self.preferred_dgps_timeout is not None and msg.dgpsTimeOut != self.preferred_dgps_timeout:
+                msg.dgpsTimeOut = self.preferred_dgps_timeout
+                print("Setting dgpsTimeOut=%u" % msg.dgpsTimeOut)
+                sendit = True
+                # we don't re-poll for this one, as some receivers refuse to set it
+            if sendit:
                 msg.pack()
                 self.send(msg)
-                self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
+                if pollit:
+                    self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
         if msg.name() == 'CFG_NAVX5' and self.preferred_usePPP is not None:
             msg.unpack()
             if msg.usePPP != self.preferred_usePPP:
@@ -664,7 +695,7 @@ class UBlox:
 	'''configure a IO port'''
         if baudrate is None:
             baudrate = self.baudrate
-        payload = struct.pack('<BBHIIHHHH', port, 0, 0, mode, baudrate, inMask, outMask, 0, 0)
+        payload = struct.pack('<BBHIIHHHH', port, 0xff, 0, mode, baudrate, inMask, outMask, 0xFFFF, 0xFFFF)
         self.send_message(CLASS_CFG, MSG_CFG_PRT, payload)
 
     def configure_loadsave(self, clearMask=0, saveMask=0, loadMask=0, deviceMask=0):

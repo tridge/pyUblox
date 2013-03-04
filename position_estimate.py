@@ -20,6 +20,8 @@ filename = args[0]
 
 dev = ublox.UBlox(filename)
 
+rtcmfile = open('rtcm2.dat', mode='wb')
+
 def position_estimate(messages, satinfo):
     '''process raw messages to calculate position
     '''
@@ -30,6 +32,16 @@ def position_estimate(messages, satinfo):
     if pos is None:
         # not enough information for a fix
         return
+
+    import RTCMv2
+    rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
+    rtcmfile.write(rtcm)
+
+    if satinfo.last_rtcm_msg3 + 30 < satinfo.raw.gps_time:
+        print("generated type 3")
+        rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
+        rtcmfile.write(rtcm)
+        satinfo.last_rtcm_msg3 = satinfo.raw.gps_time
     
     if 'NAV_POSECEF' in messages:
         posecef = messages['NAV_POSECEF']
@@ -63,18 +75,20 @@ while True:
         if pos is not None:
             pos_sum += pos
             pos_count += 1
-            #RTCMv2.generateRTCM2(satinfo)
 
 # get the receivers estimate of position. This should be quite accurate if
 # we had PPP enabled
 nav_ecef = messages['NAV_POSECEF']
 receiver_ecef = util.PosVector(nav_ecef.ecefX*0.01, nav_ecef.ecefY*0.01, nav_ecef.ecefZ*0.01)
 
+rtcmfile.close()
+
 if pos_count > 0:
     posavg = pos_sum / pos_count
 
-    print("Average position: %s  Receiver position: %s error=%f pos_count=%u" % (
+    print("Average position: %s  Satinfo.average: %s Receiver position: %s error=%f pos_count=%u" % (
             posavg.ToLLH(),
+            satinfo.average_position.ToLLH(),
             receiver_ecef.ToLLH(),
             posavg.distance(receiver_ecef),
             pos_count))

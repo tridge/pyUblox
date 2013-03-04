@@ -4,8 +4,9 @@ class rawPseudoRange:
     '''class to hold raw range information from a receiver'''
     def __init__(self, gps_week, time_of_week):
         # time of week in seconds, including fractions of a second
-        self.time_of_week = time_of_week;
+        self.time_of_week = time_of_week
         self.gps_week     = gps_week
+        self.gps_time     = util.gpsTimeToTime(gps_week, time_of_week)
         self.prMeasured   = {}
         self.quality      = {}
 
@@ -25,7 +26,10 @@ class SatelliteData:
         self.ionospheric = {}
         self.lastpos = util.PosVector(0,0,0)
         self.receiver_clock_error = 0
+        self.rtcm_bits = None
+        self.last_rtcm_msg3 = util.gpsTimeToTime(0,0)
         self.reset()
+        self.average_position = None
 
     def reset(self):
         self.satpos = {}
@@ -34,14 +38,12 @@ class SatelliteData:
         self.tropospheric_correction = {}
         self.satellite_clock_error = {}
         self.prCorrected = {}
+        self.geometricRange = {}
 
     def valid(self, svid):
         '''return true if we have all data for a given svid'''
         if not svid in self.ephemeris:
             #print("no eph")
-            return False
-        if not svid in self.ionospheric:
-            #print("no ion")
             return False
         return True
 
