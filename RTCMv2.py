@@ -131,7 +131,7 @@ class RTCMBits:
 #        print("msgprc:", msgprc)
 #        print("msgiode:", msgiode)
             
-        rtcmzcount = int((int(tow / 1000.0) % 3600) / 0.6)
+        rtcmzcount = int((int(tow) % 3600) / 0.6)
 
         self.addbits(8, 0x66)  # header id
         self.addbits(6, 1)     # msg type 1
