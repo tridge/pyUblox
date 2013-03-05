@@ -547,14 +547,25 @@ class UBlox:
 
         self.serial_device = port
         self.baudrate = baudrate
-        if os.path.isfile(self.serial_device):
+        self.use_sendrecv = False
+        self.read_only = False
+
+        if self.serial_device.startswith("tcp:"):
+            import socket
+            a = self.serial_device.split(':')
+            destination_addr = (a[1], int(a[2]))
+            self.dev = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.dev.connect(destination_addr)
+            self.dev.setblocking(1)
+            self.dev.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)            
+            self.use_sendrecv = True
+        elif os.path.isfile(self.serial_device):
             self.read_only = True
             self.dev = open(self.serial_device, mode='rb')
         else:
             import serial
             self.dev = serial.Serial(self.serial_device, baudrate=self.baudrate,
                                      dsrdtr=False, rtscts=False, xonxoff=False, timeout=timeout)
-            self.read_only = False
         self.logfile = None
         self.log = None
         self.preferred_dynamic_model = None
@@ -606,9 +617,26 @@ class UBlox:
             cs ^= ord(i)
         return cs
 
+    def write(self, buf):
+        '''write some bytes'''
+        if not self.read_only:
+            if self.use_sendrecv:
+                return self.dev.send(buf)
+            return self.dev.write(buf)
+
+    def read(self, n):
+        '''read some bytes'''
+        if self.use_sendrecv:
+            import socket
+            try:
+                return self.dev.recv(n)
+            except socket.error as e:
+                return ''
+        return self.dev.read(n)
+
     def send_nmea(self, msg):
         if not self.read_only:
-            self.dev.write(msg + "*%02X" % self.nmea_checksum(msg))
+            self.write(msg + "*%02X" % self.nmea_checksum(msg))
 
     def set_binary(self):
 	'''put a UBlox into binary mode using a NMEA string'''
@@ -656,7 +684,7 @@ class UBlox:
         msg = UBloxMessage()
         while True:
             n = msg.needed_bytes()
-            b = self.dev.read(n)
+            b = self.read(n)
             if not b:
                 if ignore_eof:
                     time.sleep(0.01)
@@ -675,7 +703,7 @@ class UBlox:
             print("invalid send")
             return
         if not self.read_only:
-            self.dev.write(msg._buf)        
+            self.write(msg._buf)        
 
     def send_message(self, msg_class, msg_id, payload):
 	'''send a ublox message with class, id and payload'''

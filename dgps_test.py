@@ -92,14 +92,14 @@ def position_estimate(messages, satinfo):
     rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
     rtcmfile.write(rtcm)
     if not opts.nortcm:
-        dev2.dev.write(rtcm)
+        dev2.write(rtcm)
 
     if satinfo.last_rtcm_msg3 + 30 < satinfo.raw.gps_time:
         print("generated type 3")
         rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
         rtcmfile.write(rtcm)
         if not opts.nortcm:
-            dev2.dev.write(rtcm)
+            dev2.write(rtcm)
         satinfo.last_rtcm_msg3 = satinfo.raw.gps_time
     
     print("pos=%s" % (pos.ToLLH()))
