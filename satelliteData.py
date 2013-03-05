@@ -33,6 +33,8 @@ class SatelliteData:
         self.position_count = 0
         self.reference_position = None
         self.receiver_position = None
+        self.recv2_position = None
+        self.recv3_position = None
         self.ionospheric = util.loadObject('ionospheric.dat')
         if self.ionospheric is None:
             self.ionospheric = {}

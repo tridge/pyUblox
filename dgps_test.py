@@ -12,16 +12,19 @@ from optparse import OptionParser
 parser = OptionParser("dgps_test.py [options]")
 parser.add_option("--port1", help="serial port 1", default='/dev/ttyACM0')
 parser.add_option("--port2", help="serial port 2", default='/dev/ttyACM1')
+parser.add_option("--port3", help="serial port 3", default='/dev/ttyACM2')
 parser.add_option("--baudrate", type='int',
                   help="serial baud rate", default=115200)
 parser.add_option("--log1", help="log file1", default=None)
 parser.add_option("--log2", help="log file2", default=None)
+parser.add_option("--log3", help="log file3", default=None)
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
 parser.add_option("--noPPP", action='store_true', default=False, help="don't use PPP on recv1")
 parser.add_option("--dynmodel1", type='int', default=ublox.DYNAMIC_MODEL_STATIONARY, help="dynamic model for recv1")
 parser.add_option("--dynmodel2", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv2")
+parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv3")
 
 
 (opts, args) = parser.parse_args()
@@ -48,13 +51,13 @@ def setup_port(port, log, append=False):
 
 dev1 = setup_port(opts.port1, opts.log1)
 dev2 = setup_port(opts.port2, opts.log2)
+dev3 = setup_port(opts.port3, opts.log3)
 
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
-
 
 
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
@@ -66,15 +69,25 @@ dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELNED, 0)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SOL, 1)
 dev2.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SVSI, 0)
 
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 0)
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELECEF, 0)
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELNED, 0)
+dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SOL, 1)
+dev3.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SVSI, 0)
+
 # we want the ground station to use a stationary model, and the roving
 # GPS to use a highly dynamic model
 dev1.set_preferred_dynamic_model(opts.dynmodel1)
 dev2.set_preferred_dynamic_model(opts.dynmodel2)
+dev3.set_preferred_dynamic_model(opts.dynmodel3)
 dev2.set_preferred_dgps_timeout(60)
 
 # enable PPP on the ground side if we can
 dev1.set_preferred_usePPP(not opts.noPPP)
 dev2.set_preferred_usePPP(False)
+dev3.set_preferred_usePPP(False)
 
 rtcmfile = open('rtcm2.dat', mode='wb')
 
@@ -124,6 +137,7 @@ def handle_rxm_raw(msg):
 
 last_msg1_time = time.time()
 last_msg2_time = time.time()
+last_msg3_time = time.time()
 
 messages = {}
 satinfo = satelliteData.SatelliteData()
@@ -156,6 +170,7 @@ def handle_device2(msg):
     if msg.name() == "NAV_POSECEF":
         msg.unpack()
         pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
+        satinfo.recv2_position = pos
         if satinfo.average_position is None:
             return
         print("-----------------")
@@ -163,16 +178,24 @@ def handle_device2(msg):
         display_diff("RECV2<->AVG",   satinfo.receiver_position, satinfo.average_position)
         display_diff("AVG<->RECV1",   satinfo.average_position, satinfo.receiver_position)
         display_diff("AVG<->RECV2",   satinfo.average_position, pos)
-        if satinfo.reference_position is not None:
+        if satinfo.reference_position is not None and satinfo.recv3_position is not None:
             display_diff("REF<->AVG",   satinfo.reference_position, satinfo.average_position)
             display_diff("RECV1<->REF", satinfo.receiver_position, satinfo.reference_position)
-            display_diff("RECV2<->REF", pos, satinfo.reference_position)
+            display_diff("RECV2<->REF", satinfo.recv2_position, satinfo.reference_position)
+            display_diff("RECV3<->REF", satinfo.recv3_position, satinfo.reference_position)
             errlog.write("%f %f %f %f\n" % (
-                satinfo.reference_position.distance(satinfo.receiver_position),
-                satinfo.reference_position.distance(pos),
-                satinfo.reference_position.distanceXY(satinfo.receiver_position),
-                satinfo.reference_position.distanceXY(pos)))
+                satinfo.reference_position.distance(satinfo.recv3_position),
+                satinfo.reference_position.distance(satinfo.recv2_position),
+                satinfo.reference_position.distanceXY(satinfo.recv3_position),
+                satinfo.reference_position.distanceXY(satinfo.recv2_position)))
             errlog.flush()
+
+def handle_device3(msg):
+    '''handle message from uncorrected rover GPS'''
+    if msg.name() == "NAV_POSECEF":
+        msg.unpack()
+        pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
+        satinfo.recv3_position = pos
                                             
 
 while True:
@@ -187,6 +210,11 @@ while True:
         handle_device2(msg)
         last_msg2_time = time.time()
 
+    msg = dev3.receive_message()
+    if msg is not None:
+        handle_device3(msg)
+        last_msg3_time = time.time()
+
     if opts.reopen and time.time() > last_msg1_time + 5:
         dev1.close()
         dev1 = setup_port(opts.port1, opts.log1, append=True)
@@ -198,5 +226,11 @@ while True:
         dev2 = setup_port(opts.port2, opts.log2, append=True)
         last_msg2_time = time.time()
         sys.stdout.write('R2')
+
+    if opts.reopen and time.time() > last_msg3_time + 5:
+        dev3.close()
+        dev3 = setup_port(opts.port3, opts.log3, append=True)
+        last_msg3_time = time.time()
+        sys.stdout.write('R3')
 
     sys.stdout.flush()
