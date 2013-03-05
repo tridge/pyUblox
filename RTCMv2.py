@@ -118,6 +118,11 @@ class RTCMBits:
         self.last_time_of_week = tow
         msgsatcnt = len(satinfo.prCorrected)
 
+        svid_list = self.error_history.keys()
+        for svid in svid_list:
+            if not svid in satinfo.prCorrected:
+                self.error_history.pop(svid)
+
         for svid in satinfo.prCorrected:
             err = satinfo.geometricRange[svid] - \
                 (satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight + satinfo.receiver_clock_error*util.speedOfLight)
