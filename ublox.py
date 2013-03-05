@@ -442,9 +442,8 @@ msg_types = {
                                                   ['tskRun', 'tskSchd', 'tskOvrr', 'tskReg', 'stack',
                                                    'stackSize', 'CPUIdle', 'flySly', 'ptlSly']),
     (CLASS_MON, MSG_MON_VER)    : UBloxDescriptor('MON_VER',
-                                                  '<30s10s',
-                                                  # this doesn't match the spec. Very strange
-                                                  ['swVersion', 'hwVersion'],
+                                                  '<30s10s,30s',
+                                                  ['swVersion', 'hwVersion', 'romVersion'],
                                                   '_remaining',
                                                   '30s',
                                                   ['extension']),
