@@ -693,6 +693,7 @@ class UBlox:
             msg.add(b)
             if self.log is not None:
                 self.log.write(b)
+                self.log.flush()
             if msg.valid():
                 self.special_handling(msg)
                 return msg
