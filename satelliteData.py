@@ -38,6 +38,8 @@ class SatelliteData:
         self.ionospheric = util.loadObject('ionospheric.dat')
         if self.ionospheric is None:
             self.ionospheric = {}
+        self.min_elevation = 5
+        self.min_quality = 6
 
     def reset(self):
         self.satpos = {}

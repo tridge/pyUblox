@@ -52,7 +52,7 @@ def positionEstimate(satinfo):
             #print("not valid")
             continue
 
-        if raw.quality[svid] < 7:
+        if raw.quality[svid] < satinfo.min_quality:
             # for now we will ignore raw data that isn't very high quality. It would be
             # better to do a weighting in the least squares calculation
             #print("low quality")
@@ -80,6 +80,11 @@ def positionEstimate(satinfo):
 
         # calculate satellite azimuth and elevation
         satPosition.calculateAzimuthElevation(satinfo, svid, satinfo.lastpos)
+
+        if satinfo.elevation[svid] < satinfo.min_elevation and satinfo.lastpos.X != 0:
+            #print("elevation %f" % satinfo.elevation[svid])
+            satinfo.satpos.pop(svid)
+            continue
 
         # calculate the satellite clock correction
         sat_clock_error = rangeCorrection.sv_clock_correction(satinfo, svid, transmitTime, Trel)

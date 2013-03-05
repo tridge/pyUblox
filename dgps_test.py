@@ -25,6 +25,8 @@ parser.add_option("--noPPP", action='store_true', default=False, help="don't use
 parser.add_option("--dynmodel1", type='int', default=ublox.DYNAMIC_MODEL_STATIONARY, help="dynamic model for recv1")
 parser.add_option("--dynmodel2", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv2")
 parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv3")
+parser.add_option("--minelevation", type='float', default=10.0, help="minimum satellite elevation")
+parser.add_option("--minquality", type='int', default=6, help="minimum satellite quality")
 
 
 (opts, args) = parser.parse_args()
@@ -143,6 +145,9 @@ messages = {}
 satinfo = satelliteData.SatelliteData()
 if opts.reference:
     satinfo.reference_position = util.ParseLLH(opts.reference).ToECEF()
+
+satinfo.min_elevation = opts.minelevation
+satinfo.min_quality = opts.minquality
 
 def handle_device1(msg):
     '''handle message from reference GPS'''
