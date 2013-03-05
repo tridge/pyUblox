@@ -167,6 +167,15 @@ class UBloxAttrDict(dict):
         else:
             self.__setitem__(name, value)
 
+def ArrayParse(field):
+    '''parse an array descriptor'''
+    arridx = field.find('[')
+    if arridx == -1:
+        return (field, -1)
+    alen = int(field[arridx+1:-1])
+    fieldname = field[:arridx]
+    return (fieldname, alen)
+
 class UBloxDescriptor:
     '''class used to describe the layout of a UBlox message'''
     def __init__(self, name, msg_format, fields=[], count_field=None, format2=None, fields2=None):
@@ -179,30 +188,48 @@ class UBloxDescriptor:
 	
     def unpack(self, msg):
 	'''unpack a UBloxMessage, creating the .fields and ._recs attributes in msg'''
-	size1 = struct.calcsize(self.msg_format)
-        buf = msg._buf[6:-2]
-        if size1 > len(buf):
-            raise UBloxError("%s INVALID_SIZE1=%u" % (self.name, len(buf)))
-        count = 0
-        f1 = list(struct.unpack(self.msg_format, buf[:size1]))
         msg._fields = {}
-        for i in range(len(self.fields)):
-            msg._fields[self.fields[i]] = f1[i]
-            if self.count_field == self.fields[i]:
-                count = int(f1[i])
+
+        # unpack main message blocks. A comm
+        formats = self.msg_format.split(',')
+        buf = msg._buf[6:-2]
+        count = 0
+        msg._recs = []
+        fields = self.fields[:]
+        
+        for fmt in formats:
+            size1 = struct.calcsize(fmt)
+            if size1 > len(buf):
+                raise UBloxError("%s INVALID_SIZE1=%u" % (self.name, len(buf)))
+            f1 = list(struct.unpack(fmt, buf[:size1]))
+            i = 0
+            while i < len(f1):
+                field = fields.pop(0)
+                (fieldname, alen) = ArrayParse(field)
+                if alen == -1:
+                    msg._fields[fieldname] = f1[i]
+                    if self.count_field == fieldname:
+                        count = int(f1[i])
+                    i += 1
+                else:
+                    msg._fields[fieldname] = [0]*alen
+                    for a in range(alen):
+                        msg._fields[fieldname][a] = f1[i]
+                        i += 1
+            buf = buf[size1:]
+            if len(buf) == 0:
+                break
+
         if self.count_field == '_remaining':
-            count = -1
-        buf = buf[size1:]
+            count = len(buf) / struct.calcsize(self.format2)
+
         if count == 0:
-            msg._recs = []
             msg._unpacked = True
             if len(buf) != 0:
                 raise UBloxError("EXTRA_BYTES=%u" % len(buf))
             return
+
         size2 = struct.calcsize(self.format2)
-        msg._recs = []
-        if count == -1:
-            count = len(buf) / size2
         for c in range(count):
             r = UBloxAttrDict()
             if size2 > len(buf):
@@ -219,17 +246,37 @@ class UBloxDescriptor:
     def pack(self, msg, msg_class=None, msg_id=None):
 	'''pack a UBloxMessage from the .fields and ._recs attributes in msg'''
         f1 = []
-        for f in self.fields:
-            f1.append(msg._fields[f])
-        length = struct.calcsize(self.msg_format)
-        if msg._recs:
-            length += len(msg._recs) * struct.calcsize(self.format2)
         if msg_class is None:
             msg_class = msg.msg_class()
         if msg_id is None:
             msg_id = msg.msg_id()
-        msg._buf = struct.pack('<BBBBH', PREAMBLE1, PREAMBLE2, msg_class, msg_id, length)
-        msg._buf += struct.pack(self.msg_format, *tuple(f1))
+        msg._buf = ''
+
+        fields = self.fields[:]
+        for f in fields:
+            (fieldname, alen) = ArrayParse(f)
+            if not fieldname in msg._fields:
+                break
+            if alen == -1:
+                f1.append(msg._fields[fieldname])
+            else:
+                for a in range(alen):
+                    f1.append(msg._fields[fieldname][a])                    
+        try:
+            # try full length message
+            fmt = self.msg_format.replace(',', '')
+            msg._buf = struct.pack(fmt, *tuple(f1))
+        except Exception as e:
+            # try without optional part
+            fmt = self.msg_format.split(',')[0]
+            msg._buf = struct.pack(fmt, *tuple(f1))
+
+        length = len(msg._buf)
+        if msg._recs:
+            length += len(msg._recs) * struct.calcsize(self.format2)
+        header = struct.pack('<BBBBH', PREAMBLE1, PREAMBLE2, msg_class, msg_id, length)
+        msg._buf = header + msg._buf
+
         for r in msg._recs:
             f2 = []
             for f in self.fields2:
@@ -243,8 +290,16 @@ class UBloxDescriptor:
             self.unpack(msg)
         ret = self.name + ': '
         for f in self.fields:
-            v = msg._fields[f]
-            if isinstance(v, str):
+            (fieldname, alen) = ArrayParse(f)
+            if not fieldname in msg._fields:
+                continue
+            v = msg._fields[fieldname]
+            if isinstance(v, list):
+                ret += '%s=[' % fieldname
+                for a in range(alen):
+                    ret += '%s, ' % v[a]
+                ret = ret[:-2] + '], '
+            elif isinstance(v, str):
                 ret += '%s="%s", ' % (f, v.rstrip(' \0'))
             else:
                 ret += '%s=%s, ' % (f, v)
@@ -332,17 +387,16 @@ msg_types = {
                                                   '<BBhbB',
                                                   ['svid', 'svFlag', 'azim', 'elev', 'age']),
     (CLASS_RXM, MSG_RXM_EPH)    : UBloxDescriptor('RXM_EPH',
-                                                  '<II IIIIIIII IIIIIIII IIIIIIII',
+                                                  '<II 8I 8I 8I',
                                                   ['svid', 'how',
-                                                   'sf1d0', 'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7',
-                                                   'sf2d0', 'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7',
-                                                   'sf3d0', 'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7']),
+                                                   'sf1d[8]', 'sf2d[8]', 'sf3d[8]']),
     (CLASS_AID, MSG_AID_EPH)    : UBloxDescriptor('AID_EPH',
-                                                  '<II IIIIIIII IIIIIIII IIIIIIII',
+                                                  '<II , 8I 8I 8I',
                                                   ['svid', 'how',
-                                                   'sf1d0', 'sf1d1', 'sf1d2', 'sf1d3', 'sf1d4', 'sf1d5', 'sf1d6', 'sf1d7',
-                                                   'sf2d0', 'sf2d1', 'sf2d2', 'sf2d3', 'sf2d4', 'sf2d5', 'sf2d6', 'sf2d7',
-                                                   'sf3d0', 'sf3d1', 'sf3d2', 'sf3d3', 'sf3d4', 'sf3d5', 'sf3d6', 'sf3d7']),
+                                                   'sf1d[8]', 'sf2d[8]', 'sf3d[8]']),
+    (CLASS_AID, MSG_AID_AOP)    : UBloxDescriptor('AID_AOP',
+                                                  '<B47B , 48B 48B 48B',
+                                                  ['svid', 'data[47]', 'optional0[48]', 'optional1[48]', 'optional1[48]']),
     (CLASS_RXM, MSG_RXM_RAW)   : UBloxDescriptor('RXM_RAW',
                                                   '<ihBB',
                                                   ['iTOW', 'week', 'numSV', 'reserved1'],
@@ -350,19 +404,16 @@ msg_types = {
                                                   '<ddfBbbB',
                                                   ['cpMes', 'prMes', 'doMes', 'sv', 'mesQI', 'cno', 'lli']),
     (CLASS_RXM, MSG_RXM_SFRB)  : UBloxDescriptor('RXM_SFRB',
-                                                  '<BBIIIIIIIIII',
-                                                  ['chn', 'svid',
-                                                   'dwrd1', 'dwrd2', 'dwrd3', 'dwrd4', 'dwrd5',
-                                                   'dwrd6', 'dwrd7', 'dwrd8', 'dwrd9', 'dwrd10']),
+                                                  '<BB10I',
+                                                  ['chn', 'svid', 'dwrd[10]']),
     (CLASS_AID, MSG_AID_ALM)   : UBloxDescriptor('AID_ALM',
                                                   '<II',
                                                  '_remaining',
                                                  'I',
                                                  ['dwrd']),
     (CLASS_RXM, MSG_RXM_ALM)   : UBloxDescriptor('RXM_ALM',
-                                                  '<II IIIIIIII',
-                                                  ['svid', 'week',
-                                                   'dwrd1', 'dwrd2', 'dwrd3', 'dwrd4', 'dwrd5', 'dwrd6', 'dwrd7', 'dwrd8']),
+                                                  '<II 8I',
+                                                  ['svid', 'week', 'dwrd[8]']),
     (CLASS_CFG, MSG_CFG_NAV5)   : UBloxDescriptor('CFG_NAV5',
                                                   '<HBBiIbBHHHHBBIII',
                                                   ['mask', 'dynModel', 'fixMode', 'fixedAlt', 'fixedAltVar', 'minElev', 
@@ -377,12 +428,10 @@ msg_types = {
                                                    'usePPP', 'useAOP', 'reserved12', 'reserved13', 
                                                    'aopOrbMaxErr', 'reserved3', 'reserved4']),
     (CLASS_MON, MSG_MON_HW)     : UBloxDescriptor('MON_HW',
-                                                  '<IIIIHHBBBBIBBBBBBBBBBBBBBBBBBBBBBBBBBHIII',
+                                                  '<IIIIHHBBBBIB25BHIII',
                                                   ['pinSel', 'pinBank', 'pinDir', 'pinVal', 'noisePerMS', 'agcCnt', 'aStatus',
 						   'aPower', 'flags', 'reserved1', 'usedMask', 
-						   'VP1', 'VP2', 'VP3', 'VP4', 'VP5', 'VP6', 'VP7', 'VP8', 'VP9', 'VP10', 
-						   'VP11', 'VP12', 'VP13', 'VP14', 'VP15', 'VP16', 'VP17', 'VP18', 'VP19', 
-						   'VP20', 'VP21', 'VP22', 'VP23', 'VP24', 'VP25',
+						   'VP[25]',                                                  
 						   'jamInd', 'reserved3', 'pinInq',
 						   'pullH', 'pullL']),
     (CLASS_MON, MSG_MON_SCHD)   : UBloxDescriptor('MON_SCHD',
@@ -417,6 +466,7 @@ class UBloxMessage:
         self._fields = {}
         self._recs = []
         self._unpacked = False
+        self.debug_level = 0
 
     def __str__(self):
 	'''format a message as a string'''
@@ -442,6 +492,15 @@ class UBloxMessage:
             self.__dict__[name] = value
         else:
             self._fields[name] = value
+
+    def have_field(self, name):
+        '''return True if a message contains the given field'''
+        return name in self._fields
+
+    def debug(self, level, msg):
+        '''write a debug message'''
+        if self.debug_level >= level:
+            print(msg)
 
     def unpack(self):
 	'''unpack a message'''
@@ -492,10 +551,13 @@ class UBloxMessage:
         if len(self._buf) > 0 and ord(self._buf[0]) != PREAMBLE1:
             return False
         if len(self._buf) > 1 and ord(self._buf[1]) != PREAMBLE2:
-            print("bad pre2")
+            self.debug(1, "bad pre2")
             return False
         if self.needed_bytes() == 0 and not self.valid():
-            print("bad len")
+            if len(self._buf) > 8:
+                self.debug(1, "bad checksum len=%u needed=%u" % (len(self._buf), self.needed_bytes()))
+            else:
+                self.debug(1, "bad len len=%u needed=%u" % (len(self._buf), self.needed_bytes()))
             return False
         return True
 
@@ -549,6 +611,7 @@ class UBlox:
         self.baudrate = baudrate
         self.use_sendrecv = False
         self.read_only = False
+        self.debug_level = 0
 
         if self.serial_device.startswith("tcp:"):
             import socket
@@ -576,6 +639,15 @@ class UBlox:
 	'''close the device'''
         self.dev.close()
 	self.dev = None
+
+    def set_debug(self, debug_level):
+        '''set debug level'''
+        self.debug_level = debug_level
+
+    def debug(self, level, msg):
+        '''write a debug message'''
+        if self.debug_level >= level:
+            print(msg)
 
     def set_logfile(self, logfile, append=False):
 	'''setup logging to a file'''
@@ -661,7 +733,7 @@ class UBlox:
                 pollit = True
             if self.preferred_dgps_timeout is not None and msg.dgpsTimeOut != self.preferred_dgps_timeout:
                 msg.dgpsTimeOut = self.preferred_dgps_timeout
-                print("Setting dgpsTimeOut=%u" % msg.dgpsTimeOut)
+                self.debug(2, "Setting dgpsTimeOut=%u" % msg.dgpsTimeOut)
                 sendit = True
                 # we don't re-poll for this one, as some receivers refuse to set it
             if sendit:
@@ -701,7 +773,7 @@ class UBlox:
     def send(self, msg):
 	'''send a preformatted ublox message'''
         if not msg.valid():
-            print("invalid send")
+            self.debug(1, "invalid send")
             return
         if not self.read_only:
             self.write(msg._buf)        
