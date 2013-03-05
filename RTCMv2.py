@@ -15,7 +15,7 @@ class RTCMBits:
         self.parity30 = 0
         self.reset()
         self.error_history = {}
-        self.history_length = 20
+        self.history_length = 10
         self.last_time_of_week = 0
 
     def reset(self):
