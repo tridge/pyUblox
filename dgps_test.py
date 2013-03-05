@@ -18,6 +18,10 @@ parser.add_option("--log1", help="log file1", default=None)
 parser.add_option("--log2", help="log file2", default=None)
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
+parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
+parser.add_option("--noPPP", action='store_true', default=False, help="don't use PPP on recv1")
+parser.add_option("--dynmodel1", type='int', default=ublox.DYNAMIC_MODEL_STATIONARY, help="dynamic model for recv1")
+parser.add_option("--dynmodel2", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv2")
 
 
 (opts, args) = parser.parse_args()
@@ -64,12 +68,12 @@ dev2.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SVSI, 0)
 
 # we want the ground station to use a stationary model, and the roving
 # GPS to use a highly dynamic model
-dev1.set_preferred_dynamic_model(ublox.DYNAMIC_MODEL_STATIONARY)
-dev2.set_preferred_dynamic_model(ublox.DYNAMIC_MODEL_AIRBORNE4G)
+dev1.set_preferred_dynamic_model(opts.dynmodel1)
+dev2.set_preferred_dynamic_model(opts.dynmodel2)
 dev2.set_preferred_dgps_timeout(60)
 
 # enable PPP on the ground side if we can
-dev1.set_preferred_usePPP(True)
+dev1.set_preferred_usePPP(not opts.noPPP)
 dev2.set_preferred_usePPP(False)
 
 rtcmfile = open('rtcm2.dat', mode='wb')
@@ -87,13 +91,15 @@ def position_estimate(messages, satinfo):
 
     rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
     rtcmfile.write(rtcm)
-    dev2.dev.write(rtcm)
+    if not opts.nortcm:
+        dev2.dev.write(rtcm)
 
     if satinfo.last_rtcm_msg3 + 30 < satinfo.raw.gps_time:
         print("generated type 3")
         rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
         rtcmfile.write(rtcm)
-        dev2.dev.write(rtcm)
+        if not opts.nortcm:
+            dev2.dev.write(rtcm)
         satinfo.last_rtcm_msg3 = satinfo.raw.gps_time
     
     print("pos=%s" % (pos.ToLLH()))
@@ -146,12 +152,15 @@ def handle_device2(msg):
         msg.unpack()
         pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
         if satinfo.average_position is not None:
+            print("-----------------")
             print("RECV1<->RECV2 error: %6.2f pos=%s" % (pos.distance(satinfo.receiver_position), satinfo.receiver_position.ToLLH()))
             print("RECV2<->AVG   error: %6.2f pos=%s" % (pos.distance(satinfo.average_position), pos.ToLLH()))
             print("AVG<->RECV1   error: %6.2f pos=%s" % (satinfo.receiver_position.distance(satinfo.average_position), satinfo.average_position.ToLLH()))
             print("AVG<->RECV2   error: %6.2f pos=%s" % (satinfo.average_position.distance(pos), satinfo.average_position.ToLLH()))
             if satinfo.reference_position is not None:
-                print("REF<->RECV2   error: %6.2f pos=%s" % (satinfo.reference_position.distance(pos), satinfo.reference_position.ToLLH()))
+                print("REF<->AVG     error: %6.2f pos=%s" % (satinfo.reference_position.distance(satinfo.average_position), satinfo.reference_position.ToLLH()))
+                print("RECV1<->REF   error: %6.2f pos=%s" % (satinfo.reference_position.distance(satinfo.receiver_position), satinfo.receiver_position.ToLLH()))
+                print("RECV2<->REF   error: %6.2f pos=%s" % (satinfo.reference_position.distance(pos), pos.ToLLH()))
                 
 
 while True:

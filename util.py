@@ -49,7 +49,7 @@ class PosLLH:
         self.alt = alt
 
     def __str__(self):
-        return '(%f, %f, %f)' % (self.lat, self.lon, self.alt)
+        return '(%.8f, %.8f, %.8f)' % (self.lat, self.lon, self.alt)
 
     def ToECEF(self):
         '''convert from lat/lon/alt to ECEF
@@ -89,7 +89,7 @@ class PosVector:
 	self.extra = extra
 
     def __str__(self):
-        return '(%f, %f, %f)' % (self.X, self.Y, self.Z)
+        return '(%.8f, %.8f, %.8f)' % (self.X, self.Y, self.Z)
 
     def __add__(self, v):
         return PosVector(self.X + v.X,
