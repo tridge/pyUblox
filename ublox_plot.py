@@ -13,8 +13,12 @@ parser.add_option("--seek", type='float', default=0, help="seek percentage to st
 parser.add_option("-f", "--follow", action='store_true', default=False, help="ignore EOF")
 parser.add_option("--size", type='int', default=20, help="plot size in meters")
 parser.add_option("--skip", type='int', default=1, help="show every N positions")
+parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 
 (opts, args) = parser.parse_args()
+
+if opts.reference:
+    reference_position = util.ParseLLH(opts.reference)
 
 # create a figure
 f = pyplot.figure(1)
@@ -54,6 +58,8 @@ def plot_line(pos1, pos2, home, colour):
 
 poscount = [0]*len(devs)
 home = None
+if reference_position:
+    home = (reference_position.lat, reference_position.lon)
 last_pos = [None]*len(devs)
 
 while True:
