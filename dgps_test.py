@@ -145,23 +145,35 @@ def handle_device1(msg):
         handle_rxm_raw(msg)
         position_estimate(messages, satinfo)
 
+errlog = open('errlog.txt', mode='w')
+errlog.write("normal DGPS normal-XY DGPS-XY\n")
+
+def display_diff(name, pos1, pos2):
+    print("%13s err: %6.2f errXY: %6.2f pos=%s" % (name, pos1.distance(pos2), pos1.distanceXY(pos2), pos1.ToLLH()))
 
 def handle_device2(msg):
     '''handle message from rover GPS'''
     if msg.name() == "NAV_POSECEF":
         msg.unpack()
         pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
-        if satinfo.average_position is not None:
-            print("-----------------")
-            print("RECV1<->RECV2 error: %6.2f pos=%s" % (pos.distance(satinfo.receiver_position), satinfo.receiver_position.ToLLH()))
-            print("RECV2<->AVG   error: %6.2f pos=%s" % (pos.distance(satinfo.average_position), pos.ToLLH()))
-            print("AVG<->RECV1   error: %6.2f pos=%s" % (satinfo.receiver_position.distance(satinfo.average_position), satinfo.average_position.ToLLH()))
-            print("AVG<->RECV2   error: %6.2f pos=%s" % (satinfo.average_position.distance(pos), satinfo.average_position.ToLLH()))
-            if satinfo.reference_position is not None:
-                print("REF<->AVG     error: %6.2f pos=%s" % (satinfo.reference_position.distance(satinfo.average_position), satinfo.reference_position.ToLLH()))
-                print("RECV1<->REF   error: %6.2f pos=%s" % (satinfo.reference_position.distance(satinfo.receiver_position), satinfo.receiver_position.ToLLH()))
-                print("RECV2<->REF   error: %6.2f pos=%s" % (satinfo.reference_position.distance(pos), pos.ToLLH()))
-                
+        if satinfo.average_position is None:
+            return
+        print("-----------------")
+        display_diff("RECV1<->RECV2", satinfo.receiver_position, pos)
+        display_diff("RECV2<->AVG",   satinfo.receiver_position, satinfo.average_position)
+        display_diff("AVG<->RECV1",   satinfo.average_position, satinfo.receiver_position)
+        display_diff("AVG<->RECV2",   satinfo.average_position, pos)
+        if satinfo.reference_position is not None:
+            display_diff("REF<->AVG",   satinfo.reference_position, satinfo.average_position)
+            display_diff("RECV1<->REF", satinfo.receiver_position, satinfo.reference_position)
+            display_diff("RECV2<->REF", pos, satinfo.reference_position)
+            errlog.write("%f %f %f %f\n" % (
+                satinfo.reference_position.distance(satinfo.receiver_position),
+                satinfo.reference_position.distance(pos),
+                satinfo.reference_position.distanceXY(satinfo.receiver_position),
+                satinfo.reference_position.distanceXY(pos)))
+            errlog.flush()
+                                            
 
 while True:
     # get a message from the reference GPS
