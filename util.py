@@ -79,6 +79,12 @@ class PosLLH:
             pos = pos.ToECEF()
         return self.ToECEF().distance(pos)
 
+    def distanceXY(self, pos):
+        '''return distance to another position'''
+        if isinstance(pos, PosLLH):
+            pos = pos.ToECEF()
+        return self.ToECEF().distanceXY(pos)
+
 class PosVector:
     '''a X/Y/Z vector class, used for ECEF positions'''
     def __init__(self, X,Y,Z, extra=None):
@@ -113,6 +119,17 @@ class PosVector:
         return math.sqrt((self.X-pos2.X)**2 + 
                          (self.Y-pos2.Y)**2 + 
                          (self.Z-pos2.Z)**2)
+
+    def distanceXY(self, pos2):
+        import math
+        if isinstance(pos2, PosLLH):
+            pos2 = pos2.ToECEF()
+	llh1 = self.ToLLH()
+	llh2 = pos2.ToLLH()
+	alt = (llh1.alt + llh2.alt)*0.5
+	llh1.alt = alt
+	llh2.alt = alt
+	return llh1.distance(llh2)
 
     def ToLLH(self):
         '''convert from ECEF to lat/lon/alt
