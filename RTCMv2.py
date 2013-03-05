@@ -212,7 +212,7 @@ class RTCMBits:
         self.reset()
 
         tow = satinfo.raw.time_of_week
-        rtcmzcount = int((int(tow / 1000.0) % 3600) / 0.6)
+        rtcmzcount = int((int(tow) % 3600) / 0.6)
 
         self.addbits(8, 0x66)  # header id
         self.addbits(6, 3)     # msg type 1
@@ -226,9 +226,14 @@ class RTCMBits:
         self.addbits(5, 4) # word length
         self.addbits(3, 0) # health bits
 
-        X = int(satinfo.average_position.X * 100.0)
-        Y = int(satinfo.average_position.Y * 100.0)
-        Z = int(satinfo.average_position.Z * 100.0)
+        if satinfo.reference_position is not None:
+            pos = satinfo.reference_position
+        else:
+            pos = satinfo.average_position
+
+        X = int(pos.X * 100.0)
+        Y = int(pos.Y * 100.0)
+        Z = int(pos.Z * 100.0)
 
         self.addbits(8, (X>>24)&0xFF)
         self.addbits(8, (X>>16)&0xFF)
