@@ -16,25 +16,33 @@ def positionErrorFunction(p, data):
         ret.append(dist - (prange + util.speedOfLight*recv_clockerr))
     return ret
 
-def positionLeastSquares(satinfo):
+def positionLeastSquares_ranges(satinfo, pranges, lastpos, last_clock_error):
     '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges'''
     import scipy
     from scipy import optimize
     data = []
 
-    pranges = satinfo.prCorrected
-    
     for svid in satinfo.satpos:
-        data.append((satinfo.satpos[svid], pranges[svid]))
-    lastpos = satinfo.lastpos
-    p0 = [lastpos.X, lastpos.Y, lastpos.Z, satinfo.receiver_clock_error]
+        if svid in pranges:
+            data.append((satinfo.satpos[svid], pranges[svid]))
+    p0 = [lastpos.X, lastpos.Y, lastpos.Z, last_clock_error]
     p1, ier = optimize.leastsq(positionErrorFunction, p0[:], args=(data))
     if not ier in [1, 2, 3, 4]:
         raise RuntimeError("Unable to find solution")
 
-    newpos = util.PosVector(p1[0], p1[1], p1[2])
+    # return position and clock error
+    return util.PosVector(p1[0], p1[1], p1[2], extra=p1[3])
+
+def positionLeastSquares(satinfo):
+    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges'''
+    pranges = satinfo.prCorrected
+
+    newpos = positionLeastSquares_ranges(satinfo,
+                                         satinfo.prCorrected,
+                                         satinfo.lastpos,
+                                         satinfo.receiver_clock_error)
     satinfo.lastpos = newpos
-    satinfo.receiver_clock_error = p1[3]
+    satinfo.receiver_clock_error = newpos.extra
     return newpos
 
 
