@@ -26,7 +26,6 @@ class SatelliteData:
         self.lastpos = util.PosVector(0,0,0)
         self.receiver_clock_error = 0
         self.rtcm_bits = None
-        self.last_rtcm_msg3 = util.gpsTimeToTime(0,0)
         self.reset()
         self.average_position = None
         self.position_sum = util.PosVector(0,0,0)

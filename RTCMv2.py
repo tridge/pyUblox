@@ -13,9 +13,19 @@ class RTCMBits:
         self.parity2 = 0
         self.reset()
         self.error_history = {}
-        self.history_length = 10
+        self.last_errors = {}
+
         self.last_time_of_week = 0
         self.stationID = 2
+
+        # how often to send RTCM type 1 messages
+        self.type1_send_time = 1
+
+        # how often to send RTCM type 3 messages
+        self.type3_send_time = 10
+
+        self.last_type1_time = 0
+        self.last_type3_time = 0
 
     def reset(self):
         '''reset at the end of a message'''
@@ -26,7 +36,11 @@ class RTCMBits:
     def bitreverse_array(self):
         ret = []
         for i in range(64):
-            ret.append(int('{:06b}'.format(i)[::-1], 2))
+            v = 0
+            for b in range(6):
+                if i & (1<<b):
+                    v |= (1<<(5-b))
+            ret.append(v)
         return ret
 
     def addbits(self, nbits, value):
@@ -100,22 +114,16 @@ class RTCMBits:
         for i in range(1, 6):
             ret = (ret<<1) + d[i]
         return ret
+
+    def modZCount(self, satinfo):
+        '''return modified Z-count'''
+        tow = satinfo.raw.time_of_week
+        toh = tow - 3600*(int(tow)//3600)
+        return int(round(toh / 0.6))
         
 
     def RTCMType1(self, satinfo):
         '''create a RTCM type 1 message'''
-
-        self.reset()
-
-        tow = satinfo.raw.time_of_week
-        deltat = tow - self.last_time_of_week
-        self.last_time_of_week = tow
-        msgsatcnt = len(satinfo.prCorrected)
-
-        svid_list = self.error_history.keys()
-        for svid in svid_list:
-            if not svid in satinfo.prCorrected:
-                self.error_history.pop(svid)
 
         for svid in satinfo.prCorrected:
             err = satinfo.geometricRange[svid] - \
@@ -123,23 +131,57 @@ class RTCMBits:
             if not svid in self.error_history:
                 self.error_history[svid] = []
             self.error_history[svid].append(err)
-            if len(self.error_history[svid]) > self.history_length:
-                self.error_history[svid].pop(0)
 
-        msgsatid = []
-        msgprc   = []
-        msgprrc  = []
-        msgiode  = []
-        for svid in satinfo.prCorrected:
+        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
+        if gpssec < self.last_type1_time + self.type1_send_time:
+            return ''
+
+        self.last_type1_time = gpssec
+        self.reset()
+
+        tow = satinfo.raw.time_of_week
+        deltat = tow - self.last_time_of_week
+        self.last_time_of_week = tow
+
+        errors = {}
+        rates = {}
+        for svid in self.error_history:
+            errors[svid] = sum(self.error_history[svid])/float(len(self.error_history[svid]))
+            if svid in self.last_errors and deltat > 0:
+                rates[svid] = (errors[svid] - self.last_errors[svid]) / deltat
+            else:
+                rates[svid] = 0
+                
+            
+        msgsatid     = []
+        msgprc       = []
+        msgprrc      = []
+        msgiode      = []
+        scalefactors = []
+        for svid in self.error_history:
+            prc  = int(round(errors[svid]/0.02))
+            prrc = int(round(rates[svid]/0.002))
+
+            sf = 0
+            while prc > 32767 or prc < -32768 or prrc > 127 or prrc < -128:
+                sf += 1
+                prc  = (prc + 8)  // 16
+                prrc = (prrc + 8) // 16
+            if sf > 1:
+                # skip satellites if we can't represent the error in the
+                # number of bits allowed
+                continue
             msgsatid.append(svid)
-            err = sum(self.error_history[svid])/float(len(self.error_history[svid]))
-            err = int(err / 0.02)
-            msgprc.append(err)
-            msgprrc.append(0)
+            msgprc.append(prc)
+            msgprrc.append(prrc)
             msgiode.append(satinfo.ephemeris[svid].iode)
+            scalefactors.append(sf)
 
+        # clear the history
+        self.last_errors = errors
+        self.error_history = {}
 
-        rtcmzcount = int((int(tow) % 3600) / 0.6)
+        rtcmzcount = self.modZCount(satinfo)
 
         # first part of header
         self.addbits(8, 0x66)  # header id
@@ -150,6 +192,8 @@ class RTCMBits:
         self.addbits(13, rtcmzcount) # z-count
         self.addbits(3, self.rtcmseq) # seq no.
         self.rtcmseq = (self.rtcmseq + 1) % 8
+
+        msgsatcnt = len(msgsatid)
 
         # now compute the word length of the message
         # each word contains 24 bits of data, plus 6 bits of parity
@@ -163,20 +207,7 @@ class RTCMBits:
         self.addbits(3, 0)
 
         for i in range(msgsatcnt):
-            '''      
-            We have to calculate the scale factor, first.
-            RTCM PRC is 16 bits, scaled by 0.02, or 0.32 if sf==1 .
-            RTCM PRRC is 8 bits, scaled by 0.002, or 0.032 if sf==1 .
-            '''
-            sf = 0
-            if msgprc[i] > 32767 or msgprc[i] < -32768:
-                sf = 1
-            if msgprrc[i] > 127 or msgprrc[i] < -128:
-                sf = 1
-            if sf != 0:
-                msgprc[i] = (msgprc[i] + 8) // 16
-                msgprrc[i] = (msgprrc[i] + 8) // 16
-            self.addbits(1, sf) # scale factor
+            self.addbits(1, scalefactors[i])
             self.addbits(2, 0)  # UDRE
             self.addbits(5, msgsatid[i]) # sat id no
             # we split the prc into two 8-bit bytes, because an RTCM word
@@ -189,16 +220,21 @@ class RTCMBits:
         while self.rtcbits != 0:
             self.addbits(8, 0xAA) # pad unused bits with 0xAA
         #print("MSG: bitlength=%u wordlength=%u len=%u" % (bitlength, wordlength, len(self.buf)))
-        return self.buf
+        return self.buf + "\r\n"
 
 
     def RTCMType3(self, satinfo):
         '''create a RTCM type 3 message'''
 
+        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
+        if gpssec < self.last_type3_time + self.type3_send_time:
+            return ''
+
+        self.last_type3_time = gpssec
+
         self.reset()
 
-        tow = satinfo.raw.time_of_week
-        rtcmzcount = int((int(tow) % 3600) / 0.6)
+        rtcmzcount = self.modZCount(satinfo)
 
         self.addbits(8, 0x66)  # header id
         self.addbits(6, 3)     # msg type 1
@@ -238,7 +274,7 @@ class RTCMBits:
 
         while self.rtcbits != 0:
             self.addbits(8, 0xAA) # pad unused bits with 0xAA
-        return self.buf
+        return self.buf + "\n\r"
 
 
 def generateRTCM2_Message1(satinfo):
