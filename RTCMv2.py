@@ -15,6 +15,12 @@ class RTCMBits:
         self.error_history = {}
         self.last_errors = {}
 
+        # if history_length is > 0 then do error averaging over
+        # history_length values. If ==0 then average over samples between
+        # RTCM points
+        #self.history_length = 10
+        self.history_length = 0
+
         self.last_time_of_week = 0
         self.stationID = 2
 
@@ -139,8 +145,6 @@ class RTCMBits:
             if not svid in satinfo.prMeasured:
                 continue
 
-            prAdjusted = satinfo.prMeasured[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid] + satinfo.ionospheric_correction[svid])
-
             pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight
 #            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid])
 #            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.ionospheric_correction[svid])
@@ -223,8 +227,13 @@ class RTCMBits:
         self.calcRTCMPosition(satinfo, msgsatid, msgprc, scalefactors)
         
         # clear the history
-        self.last_errors = errors
-        self.error_history = {}
+        self.last_errors = errors.copy()
+        if self.history_length == 0:
+            self.error_history = {}
+        else:
+            for svid in self.error_history:
+                while len(self.error_history[svid]) > self.history_length:
+                    self.error_history[svid].pop(0)
         self.last_time_of_week = tow
 
         rtcmzcount = self.modZCount(satinfo)
