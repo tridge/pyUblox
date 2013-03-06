@@ -1,4 +1,4 @@
-import struct, util
+import struct, util, positionEstimate
 
 class RTCMBits:
     '''RTCMv2 bit packer. Thanks to Michael Oborne for the C# code this was based on
@@ -19,7 +19,7 @@ class RTCMBits:
         self.stationID = 2
 
         # how often to send RTCM type 1 messages
-        self.type1_send_time = 1
+        self.type1_send_time = 5
 
         # how often to send RTCM type 3 messages
         self.type3_send_time = 10
@@ -122,12 +122,50 @@ class RTCMBits:
         return int(round(toh / 0.6))
         
 
+    def calcRTCMPosition(self, satinfo, msgsatid, msgprc, scalefactors):
+        '''
+        calculate a position using the raw reference receiver data
+        and the generated RTCM data. This should be close to the reference
+        position if we are calculating the RTCM data correctly
+        '''
+        msgsatcnt = len(msgsatid)
+        
+        pranges = {}
+        for i in range(msgsatcnt):
+            svid = msgsatid[i]
+            err = msgprc[i]*0.02
+            if scalefactors[i] == 1:
+                err *= 16.0
+            if not svid in satinfo.prMeasured:
+                continue
+
+            prAdjusted = satinfo.prMeasured[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid] + satinfo.ionospheric_correction[svid])
+
+            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight
+#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid])
+#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.ionospheric_correction[svid])
+#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid] + satinfo.ionospheric_correction[svid])
+
+            pranges[svid] += err
+            #print(svid, prc, err, satinfo.receiver_clock_error*util.speedOfLight, satinfo.satellite_clock_error[svid]*util.speedOfLight, satinfo.tropospheric_correction[svid], satinfo.ionospheric_correction[svid])
+        lastpos = satinfo.rtcm_position
+        if lastpos is None:
+            lastpos = util.PosVector(0,0,0)
+        if len(pranges) >= 4:
+            #print pranges
+            #print satinfo.prCorrected
+            satinfo.rtcm_position = positionEstimate.positionLeastSquares_ranges(satinfo, pranges, lastpos, 0)
+
+
     def RTCMType1(self, satinfo):
         '''create a RTCM type 1 message'''
 
         for svid in satinfo.prCorrected:
-            err = satinfo.geometricRange[svid] - \
-                (satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight + satinfo.receiver_clock_error*util.speedOfLight)
+            prAdjusted = satinfo.prMeasured[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
+            #prAdjusted -= satinfo.tropospheric_correction[svid]
+            #prAdjusted -= satinfo.ionospheric_correction[svid]
+
+            err = satinfo.geometricRange[svid] - prAdjusted
             if not svid in self.error_history:
                 self.error_history[svid] = []
             self.error_history[svid].append(err)
@@ -141,7 +179,6 @@ class RTCMBits:
 
         tow = satinfo.raw.time_of_week
         deltat = tow - self.last_time_of_week
-        self.last_time_of_week = tow
 
         errors = {}
         rates = {}
@@ -151,7 +188,6 @@ class RTCMBits:
                 rates[svid] = (errors[svid] - self.last_errors[svid]) / deltat
             else:
                 rates[svid] = 0
-                
             
         msgsatid     = []
         msgprc       = []
@@ -163,23 +199,33 @@ class RTCMBits:
             prrc = int(round(rates[svid]/0.002))
 
             sf = 0
-            while prc > 32767 or prc < -32768 or prrc > 127 or prrc < -128:
+            while prc > 32767 or prc < -32768:
                 sf += 1
                 prc  = (prc + 8)  // 16
-                prrc = (prrc + 8) // 16
             if sf > 1:
                 # skip satellites if we can't represent the error in the
                 # number of bits allowed
                 continue
+            if sf == 1:
+                prrc = (prrc + 8) // 16
+            prrc = min(prrc, 127)
+            prrc = max(prrc, -128)
             msgsatid.append(svid)
             msgprc.append(prc)
             msgprrc.append(prrc)
             msgiode.append(satinfo.ephemeris[svid].iode)
             scalefactors.append(sf)
 
+        msgsatcnt = len(msgsatid)
+        if msgsatcnt == 0:
+            return ''
+
+        self.calcRTCMPosition(satinfo, msgsatid, msgprc, scalefactors)
+        
         # clear the history
         self.last_errors = errors
         self.error_history = {}
+        self.last_time_of_week = tow
 
         rtcmzcount = self.modZCount(satinfo)
 
@@ -192,8 +238,6 @@ class RTCMBits:
         self.addbits(13, rtcmzcount) # z-count
         self.addbits(3, self.rtcmseq) # seq no.
         self.rtcmseq = (self.rtcmseq + 1) % 8
-
-        msgsatcnt = len(msgsatid)
 
         # now compute the word length of the message
         # each word contains 24 bits of data, plus 6 bits of parity
