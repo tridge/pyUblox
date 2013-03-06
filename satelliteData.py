@@ -30,10 +30,23 @@ class SatelliteData:
         self.average_position = None
         self.position_sum = util.PosVector(0,0,0)
         self.position_count = 0
+
+        # the reference position given by the user, if any
         self.reference_position = None
+
+        # the position reported by the reference receiver
         self.receiver_position = None
+
+        # the position reported by the corrected rover
         self.recv2_position = None
+
+        # the position reported by the uncorrected rover
         self.recv3_position = None
+
+        # the position calculated from the reference receivers raw data
+        # and the generated RTCM data.
+        self.rtcm_position = None
+        
         self.ionospheric = util.loadObject('ionospheric.dat')
         if self.ionospheric is None:
             self.ionospheric = {}
