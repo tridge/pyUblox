@@ -772,6 +772,14 @@ class UBlox:
                 self.special_handling(msg)
                 return msg
 
+    def receive_message_noerror(self, ignore_eof=False):
+	'''blocking receive of one ublox message, ignoring errors'''
+        try:
+            return self.receive_message(ignore_eof=ignore_eof)
+        except UBloxError as e:
+            print(e)
+            return None
+
     def send(self, msg):
 	'''send a preformatted ublox message'''
         if not msg.valid():
