@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''common utility functions'''
 
-import math
+import math, os
 
 radius_of_earth = 6378137.0 # in meters
 speedOfLight    = 299792458.0 # in m/s
@@ -180,9 +180,10 @@ def gpsTimeToTime(week, sec):
 def saveObject(filename, object):
     '''save an object to a file'''
     import pickle
-    h = open(filename, mode='wb')
+    h = open(filename + '.tmp', mode='wb')
     pickle.dump(object, h)
     h.close()
+    os.rename(filename + '.tmp', filename)
 
 
 def loadObject(filename):
