@@ -63,7 +63,7 @@ dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
-dev1.configure_solution_rate(rate_ms=200)
+dev1.configure_solution_rate(rate_ms=1000)
 
 
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
@@ -201,6 +201,7 @@ def handle_device2(msg):
             display_diff("RECV2<->REF", satinfo.recv2_position, satinfo.reference_position)
             if satinfo.rtcm_position is not None:
                 display_diff("RTCM<->REF", satinfo.rtcm_position, satinfo.reference_position)                
+                display_diff("RTCM<->RECV2", satinfo.rtcm_position, satinfo.recv2_position)                
             if satinfo.recv3_position is not None:
                 display_diff("RECV3<->REF", satinfo.recv3_position, satinfo.reference_position)
                 errlog.write("%f %f %f %f\n" % (
