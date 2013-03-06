@@ -20,7 +20,6 @@ class SatelliteData:
     '''class to hold satellite data from AID_EPH, RXM_SFRB and RXM_RAW messages plus calculated
        positions and error terms'''
     def __init__(self):
-        self.ephemeris = {}
         self.azimuth = {}
         self.elevation = {}
         self.lastpos = util.PosVector(0,0,0)
@@ -46,6 +45,10 @@ class SatelliteData:
         # the position calculated from the reference receivers raw data
         # and the generated RTCM data.
         self.rtcm_position = None
+
+        self.ephemeris = util.loadObject('ephemeris.dat')
+        if self.ephemeris is None:
+            self.ephemeris = {}
         
         self.ionospheric = util.loadObject('ionospheric.dat')
         if self.ionospheric is None:
@@ -74,6 +77,7 @@ class SatelliteData:
         eph = ephemeris.EphemerisData(msg)
         if eph.valid:
             self.ephemeris[eph.svid] = eph
+            util.saveObject('ephemeris.dat', self.ephemeris)
 
     def add_RXM_SFRB(self, msg):
         '''add some RXM_SFRB subframe data'''
