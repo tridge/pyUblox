@@ -199,6 +199,8 @@ def handle_device2(msg):
             display_diff("REF<->AVG",   satinfo.reference_position, satinfo.average_position)
             display_diff("RECV1<->REF", satinfo.receiver_position, satinfo.reference_position)
             display_diff("RECV2<->REF", satinfo.recv2_position, satinfo.reference_position)
+            if satinfo.rtcm_position is not None:
+                display_diff("RTCM<->REF", satinfo.rtcm_position, satinfo.reference_position)                
             if satinfo.recv3_position is not None:
                 display_diff("RECV3<->REF", satinfo.recv3_position, satinfo.reference_position)
                 errlog.write("%f %f %f %f\n" % (
@@ -225,18 +227,18 @@ def handle_device3(msg):
 
 while True:
     # get a message from the reference GPS
-    msg = dev1.receive_message()
+    msg = dev1.receive_message_noerror()
     if msg is not None:
         handle_device1(msg)
         last_msg1_time = time.time()
 
-    msg = dev2.receive_message()
+    msg = dev2.receive_message_noerror()
     if msg is not None:
         handle_device2(msg)
         last_msg2_time = time.time()
 
     if dev3 is not None:
-        msg = dev3.receive_message()
+        msg = dev3.receive_message_noerror()
         if msg is not None:
             handle_device3(msg)
             last_msg3_time = time.time()
