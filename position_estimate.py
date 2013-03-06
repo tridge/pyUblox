@@ -37,11 +37,9 @@ def position_estimate(messages, satinfo):
     rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
     rtcmfile.write(rtcm)
 
-    if satinfo.last_rtcm_msg3 + 30 < satinfo.raw.gps_time:
-        print("generated type 3")
-        rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
+    rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
+    if len(rtcm) > 0:
         rtcmfile.write(rtcm)
-        satinfo.last_rtcm_msg3 = satinfo.raw.gps_time
     
     if 'NAV_POSECEF' in messages:
         posecef = messages['NAV_POSECEF']
