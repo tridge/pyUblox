@@ -142,10 +142,10 @@ class RTCMBits:
             err = msgprc[i]*0.02
             if scalefactors[i] == 1:
                 err *= 16.0
-            if not svid in satinfo.prMeasured:
+            if not svid in satinfo.prSmoothed:
                 continue
 
-            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight
+            pranges[svid] = satinfo.prSmoothed[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight
 #            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid])
 #            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.ionospheric_correction[svid])
 #            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid] + satinfo.ionospheric_correction[svid])
@@ -164,8 +164,8 @@ class RTCMBits:
     def RTCMType1(self, satinfo):
         '''create a RTCM type 1 message'''
 
-        for svid in satinfo.prCorrected:
-            prAdjusted = satinfo.prMeasured[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
+        for svid in satinfo.prSmoothed:
+            prAdjusted = satinfo.prSmoothed[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
             #prAdjusted -= satinfo.tropospheric_correction[svid]
             #prAdjusted -= satinfo.ionospheric_correction[svid]
 

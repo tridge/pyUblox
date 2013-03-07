@@ -69,9 +69,10 @@ def positionEstimate(satinfo):
         # get the ephemeris and pseudo-range for this space vehicle
         ephemeris = satinfo.ephemeris[svid]
         prMes = raw.prMeasured[svid]
+        prSmooth = satinfo.smooth.prSmoothed[svid]
 
         # calculate the time of flight for this pseudo range
-        tof = prMes / util.speedOfLight
+        tof = prSmooth / util.speedOfLight
 
         # assume the time_of_week is the exact receiver time of week that the message arrived.
         # subtract the time of flight to get the satellite transmit time
@@ -107,10 +108,11 @@ def positionEstimate(satinfo):
         total_range_correction = ion_corr + tropo_corr
 
         # correct the pseudo-range for the clock and atmospheric errors
-        prCorrected = prMes + sat_clock_error*util.speedOfLight - total_range_correction
+        prCorrected = prSmooth + sat_clock_error*util.speedOfLight - total_range_correction
 
         # save the values in the satinfo object
         satinfo.prMeasured[svid] = prMes
+        satinfo.prSmoothed[svid] = prSmooth
         satinfo.prCorrected[svid] = prCorrected
         satinfo.ionospheric_correction[svid] = ion_corr
         satinfo.tropospheric_correction[svid] = tropo_corr

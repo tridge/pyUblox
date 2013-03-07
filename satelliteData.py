@@ -1,4 +1,4 @@
-import util, ephemeris
+import util, ephemeris, prSmooth
 
 class rawPseudoRange:
     '''class to hold raw range information from a receiver'''
@@ -8,11 +8,13 @@ class rawPseudoRange:
         self.gps_week     = gps_week
         self.gps_time     = util.gpsTimeToTime(gps_week, time_of_week)
         self.prMeasured   = {}
+        self.cpMeasured   = {}
         self.quality      = {}
 
-    def add(self, svid, prMes, quality):
+    def add(self, svid, prMes, cpMes, quality):
         '''add a pseudo range for a given svid'''
         self.prMeasured[svid] = prMes
+        self.cpMeasured[svid] = cpMes * (util.speedOfLight / 1.57542e9)
         self.quality[svid]    = quality
         
 
@@ -56,9 +58,12 @@ class SatelliteData:
         self.min_elevation = 5
         self.min_quality = 6
 
+        self.smooth = prSmooth.prSmooth()
+
     def reset(self):
         self.satpos = {}
         self.prMeasured = {}
+        self.prSmoothed = {}
         self.ionospheric_correction = {}
         self.tropospheric_correction = {}
         self.satellite_clock_error = {}
@@ -92,7 +97,10 @@ class SatelliteData:
         for i in range(msg.numSV):
             self.raw.add(msg.recs[i].sv,
                          msg.recs[i].prMes,
+                         msg.recs[i].cpMes,
                          msg.recs[i].mesQI)
+        # step the smoothed pseudo-ranges
+        self.smooth.step(self.raw)
 
     def add_NAV_POSECEF(self, msg):
         '''add a NAV_POSECEF message'''
