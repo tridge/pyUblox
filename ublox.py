@@ -143,6 +143,17 @@ DYNAMIC_MODEL_AIRBORNE1G = 6
 DYNAMIC_MODEL_AIRBORNE2G = 7
 DYNAMIC_MODEL_AIRBORNE4G = 8
 
+#reset items
+RESET_HOT  = 0
+RESET_WARM = 1
+RESET_COLD = 0xFFFF
+
+RESET_HW            = 0
+RESET_SW            = 1
+RESET_SW_GPS        = 2
+RESET_HW_GRACEFUL   = 4
+RESET_GPS_STOP      = 8
+RESET_GPS_START     = 9
 
 class UBloxError(Exception):
     '''Ublox error class'''
@@ -332,6 +343,9 @@ msg_types = {
     (CLASS_CFG, MSG_CFG_CFG)    : UBloxDescriptor('CFG_CFG',
                                                   '<III,B',
                                                   ['clearMask', 'saveMask', 'loadMask', 'deviceMask']),
+    (CLASS_CFG, MSG_CFG_RST)    : UBloxDescriptor('CFG_RST',
+                                                  '<HBB',
+                                                  ['navBbrMask ', 'resetMode', 'reserved1']),
     (CLASS_NAV, MSG_NAV_POSLLH) : UBloxDescriptor('NAV_POSLLH',
                                                   '<IiiiiII', 
                                                   ['iTOW', 'Longitude', 'Latitude', 'height', 'hMSL', 'hAcc', 'vAcc']),
@@ -737,6 +751,10 @@ class UBlox:
                 msg.dynModel = self.preferred_dynamic_model
                 sendit = True
                 pollit = True
+            if self.min_elevation is not None and msg.minElev != self.min_elevation:
+                msg.minElev = self.min_elevation
+                sendit = True
+                pollit = True
             if self.preferred_dgps_timeout is not None and msg.dgpsTimeOut != self.preferred_dgps_timeout:
                 msg.dgpsTimeOut = self.preferred_dgps_timeout
                 self.debug(2, "Setting dgpsTimeOut=%u" % msg.dgpsTimeOut)
@@ -833,4 +851,14 @@ class UBlox:
             self.configure_poll(CLASS_CFG, MSG_CFG_PRT)
         else:
             self.configure_poll(CLASS_CFG, MSG_CFG_PRT, struct.pack('<B', portID))
+
+    def configure_min_max_sats(self, min_sats=4, max_sats=32):
+        '''Set the minimum/maximum number of satellites for a solution in the NAVX5 message'''
+        payload = struct.pack('<HHIBBBBBBBBBBHIBBBBBBHII', 0, 4, 0, 0, 0, min_sats, max_sats, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        self.send_message(CLASS_CFG, MSG_CFG_NAVX5, payload)
+
+    def module_reset(self, set, mode):
+        ''' Reset the module for hot/warm/cold start'''
+        payload = struct.pack('<HBB', set, mode, 0)
+        self.send_message(CLASS_CFG, MSG_CFG_RST, payload)
 

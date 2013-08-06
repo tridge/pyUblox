@@ -121,9 +121,9 @@ class RTCMBits:
             ret = (ret<<1) + d[i]
         return ret
 
-    def modZCount(self, satinfo):
+    def modZCount(self):
         '''return modified Z-count'''
-        tow = satinfo.raw.time_of_week
+        tow = self.time_of_week
         toh = tow - 3600*(int(tow)//3600)
         return int(round(toh / 0.6))
         
@@ -156,9 +156,20 @@ class RTCMBits:
         if lastpos is None:
             lastpos = util.PosVector(0,0,0)
         if len(pranges) >= 4:
-            #print pranges
-            #print satinfo.prCorrected
+            print pranges
+            print satinfo.prCorrected
             satinfo.rtcm_position = positionEstimate.positionLeastSquares_ranges(satinfo, pranges, lastpos, 0)
+
+
+    def getUDRE(self, svid, weight):
+        '''return a UDRE given the weighting'''
+        if weight > 0.9:
+            return 0 # <= 1m
+        if weight > 0.5:
+            return 1 # <= 4m
+        if weight > 0.25:
+            return 2 # <= 8m
+        return 3 # > 8m
 
 
     def RTCMType1(self, satinfo):
@@ -174,14 +185,37 @@ class RTCMBits:
                 self.error_history[svid] = []
             self.error_history[svid].append(err)
 
-        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
+        self.time_of_week = satinfo.raw.time_of_week
+        self.gps_week = satinfo.raw.gps_week
+
+        self.iode = {}
+        for svid in satinfo.ephemeris:
+            self.iode[svid] = satinfo.ephemeris[svid].iode
+
+        return self.RTCMType1_step()
+
+    def RTCMType1_ext(self, errset, iTOW, week, iode):
+        for svid in errset:
+            if not svid in self.error_history:
+                self.error_history[svid] = []
+
+            self.error_history[svid].append(errset[svid])
+
+        self.time_of_week = iTOW
+        self.gps_week = week
+        self.iode = iode
+
+        return self.RTCMType1_step()
+
+    def RTCMType1_step(self):
+        gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
         if gpssec < self.last_type1_time + self.type1_send_time:
             return ''
 
         self.last_type1_time = gpssec
         self.reset()
 
-        tow = satinfo.raw.time_of_week
+        tow = self.time_of_week
         deltat = tow - self.last_time_of_week
 
         errors = {}
@@ -197,8 +231,12 @@ class RTCMBits:
         msgprc       = []
         msgprrc      = []
         msgiode      = []
+        msgudre      = []
         scalefactors = []
         for svid in self.error_history:
+            if not svid in self.iode:
+                continue
+
             prc  = int(round(errors[svid]/0.02))
             prrc = int(round(rates[svid]/0.002))
 
@@ -217,15 +255,13 @@ class RTCMBits:
             msgsatid.append(svid)
             msgprc.append(prc)
             msgprrc.append(prrc)
-            msgiode.append(satinfo.ephemeris[svid].iode)
+            msgiode.append(self.iode[svid])
             scalefactors.append(sf)
 
         msgsatcnt = len(msgsatid)
         if msgsatcnt == 0:
             return ''
 
-        self.calcRTCMPosition(satinfo, msgsatid, msgprc, scalefactors)
-        
         # clear the history
         self.last_errors = errors.copy()
         if self.history_length == 0:
@@ -236,7 +272,7 @@ class RTCMBits:
                     self.error_history[svid].pop(0)
         self.last_time_of_week = tow
 
-        rtcmzcount = self.modZCount(satinfo)
+        rtcmzcount = self.modZCount()
 
         # first part of header
         self.addbits(8, 0x66)  # header id
@@ -279,7 +315,25 @@ class RTCMBits:
     def RTCMType3(self, satinfo):
         '''create a RTCM type 3 message'''
 
-        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
+        self.time_of_week = satinfo.raw.time_of_week
+        self.gps_week = satinfo.raw.gps_week
+
+        if satinfo.reference_position is not None:
+            self.pos = satinfo.reference_position
+        else:
+            self.pos = satinfo.average_position
+
+        return self.RTCMType3_step()
+
+    def RTCMType3_ext(self, iTOW, week, pos):
+        self.time_of_week = iTOW
+        self.gps_week = week
+        self.pos = pos
+
+        return self.RTCMType3_step()
+
+    def RTCMType3_step(self):
+        gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
         if gpssec < self.last_type3_time + self.type3_send_time:
             return ''
 
@@ -287,7 +341,7 @@ class RTCMBits:
 
         self.reset()
 
-        rtcmzcount = self.modZCount(satinfo)
+        rtcmzcount = self.modZCount()
 
         self.addbits(8, 0x66)  # header id
         self.addbits(6, 3)     # msg type 1
@@ -301,10 +355,7 @@ class RTCMBits:
         self.addbits(5, 4) # word length
         self.addbits(3, 0) # health bits
 
-        if satinfo.reference_position is not None:
-            pos = satinfo.reference_position
-        else:
-            pos = satinfo.average_position
+        pos = self.pos
 
         X = int(pos.X * 100.0)
         Y = int(pos.Y * 100.0)

@@ -35,7 +35,7 @@ class prSmooth:
             Pn = raw.prMeasured[svid]
             Cn = raw.cpMeasured[svid]
         
-            if svid not in N:
+            if svid not in N or raw.quality[svid] < 5:
                 N[svid] = 0
             N[svid] = min(N[svid] + 1, Nmax)
 

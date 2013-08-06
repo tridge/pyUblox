@@ -31,6 +31,7 @@ class SatelliteData:
         self.average_position = None
         self.position_sum = util.PosVector(0,0,0)
         self.position_count = 0
+        self.save_files = True
 
         # the reference position given by the user, if any
         self.reference_position = None
@@ -82,14 +83,16 @@ class SatelliteData:
         eph = ephemeris.EphemerisData(msg)
         if eph.valid:
             self.ephemeris[eph.svid] = eph
-            util.saveObject('ephemeris.dat', self.ephemeris)
+            if self.save_files:
+                util.saveObject('ephemeris.dat', self.ephemeris)
 
     def add_RXM_SFRB(self, msg):
         '''add some RXM_SFRB subframe data'''
         ion = ephemeris.IonosphericData(msg)
         if ion.valid:
             self.ionospheric[msg.svid] = ion
-            util.saveObject('ionospheric.dat', self.ionospheric)
+            if self.save_files:
+                util.saveObject('ionospheric.dat', self.ionospheric)
 
     def add_RXM_RAW(self, msg):
         '''add some RXM_RAW pseudo range data'''

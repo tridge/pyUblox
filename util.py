@@ -88,9 +88,9 @@ class PosLLH:
 class PosVector:
     '''a X/Y/Z vector class, used for ECEF positions'''
     def __init__(self, X,Y,Z, extra=None):
-        self.X = X
-        self.Y = Y
-        self.Z = Z
+        self.X = float(X)
+        self.Y = float(Y)
+        self.Z = float(Z)
 	# allow for some extra information to be carried in the vector
 	self.extra = extra
 

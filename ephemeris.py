@@ -155,11 +155,11 @@ class IonosphericData:
         # this checks if we have the right subframe
         self.valid  = (self.pageID == 56 and self.id == 4)
         #print("svid=%u id=%u pageID=%u" % (self.svid, self.id, self.pageID))
-#        '''
+        '''
         if self.valid:
             print("a0=%g a1=%g a2=%g a3=%g b0=%g b1=%g b2=%g b3=%g leap=%u" % (
                 self.a0, self.a1, self.a2, self.a3,
                 self.b0, self.b1, self.b2, self.b3,
                 self.leap))
-#                '''
+                '''
                   
