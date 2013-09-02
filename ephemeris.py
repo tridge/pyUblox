@@ -108,6 +108,23 @@ class EphemerisData:
         self.valid = (iode1 == iode2) and (iode1 == (iodc & 0xff))
         self.iode = iode1
 
+    def __eq__(self, other):
+        '''allow for equality testing
+        See http://stackoverflow.com/questions/3550336/comparing-two-objects
+        '''
+        attrs = [ 'svid', 'valid', 'Tgd', 'A', 'cic', 'cis', 'crc', 'crs', 'cuc', 'cus',
+                  'deltaN', 'ecc', 'i0', 'idot', 'M0', 'omega', 'omega_dot', 'omega0',
+                  'toe', 'toc', 'af0', 'af1', 'af2', 'iode' ]
+        for a in attrs:
+            v1, v2 = [getattr(obj, a, None) for obj in [self, other]]
+            if v1 is None or v2 is None or v1 != v2:
+                return False
+        return True
+
+    def __ne__(self, other):
+        '''allow for equality testing'''
+        return not self.__eq__(other)
+
 
 class IonosphericData:
     '''decode ionospheric data from a RXM_SFRB subframe 4 message
@@ -155,11 +172,26 @@ class IonosphericData:
         # this checks if we have the right subframe
         self.valid  = (self.pageID == 56 and self.id == 4)
         #print("svid=%u id=%u pageID=%u" % (self.svid, self.id, self.pageID))
-        '''
+#        '''
         if self.valid:
             print("a0=%g a1=%g a2=%g a3=%g b0=%g b1=%g b2=%g b3=%g leap=%u" % (
                 self.a0, self.a1, self.a2, self.a3,
                 self.b0, self.b1, self.b2, self.b3,
                 self.leap))
-                '''
+#                '''
                   
+    def __eq__(self, other):
+        '''allow for equality testing
+        See http://stackoverflow.com/questions/3550336/comparing-two-objects
+        '''
+        attrs = [ 'svid', 'valid', 'a0', 'a1', 'a2', 'a3',
+                  'b0', 'b1', 'b2', 'b3', 'leap', 'id', 'pageID' ]
+        for a in attrs:
+            v1, v2 = [getattr(obj, a, None) for obj in [self, other]]
+            if v1 is None or v2 is None or v1 != v2:
+                return False
+        return True
+
+    def __ne__(self, other):
+        '''allow for equality testing'''
+        return not self.__eq__(other)

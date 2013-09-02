@@ -88,9 +88,9 @@ class PosLLH:
 class PosVector:
     '''a X/Y/Z vector class, used for ECEF positions'''
     def __init__(self, X,Y,Z, extra=None):
-        self.X = float(X)
-        self.Y = float(Y)
-        self.Z = float(Z)
+        self.X = X
+        self.Y = Y
+        self.Z = Z
 	# allow for some extra information to be carried in the vector
 	self.extra = extra
 
@@ -130,6 +130,57 @@ class PosVector:
 	llh1.alt = alt
 	llh2.alt = alt
 	return llh1.distance(llh2)
+
+    def bearing(self, pos):
+	'''return bearing between two points in degrees, in range 0-360
+	thanks to http://www.movable-type.co.uk/scripts/latlong.html'''
+	from math import sin, cos, atan2, radians, degrees
+	llh1 = self.ToLLH()
+	llh2 = pos.ToLLH()
+	
+	lat1 = radians(llh1.lat)
+	lat2 = radians(llh2.lat)
+	lon1 = radians(llh1.lon)
+	lon2 = radians(llh2.lon)
+	dLat = lat2 - lat1
+	dLon = lon2 - lon1    
+	y = sin(dLon) * cos(lat2)
+	x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(dLon)
+	bearing = degrees(atan2(y, x))
+	if bearing < 0:
+		bearing += 360.0
+	return bearing
+
+    def offsetXY(self, pos):
+        '''
+	return offset X,Y in meters to pos
+	'''
+	from math import sin, cos, radians
+        distance = self.distanceXY(pos)
+        bearing = self.bearing(pos)
+        x = distance * sin(radians(bearing))
+        y = distance * cos(radians(bearing))
+        return (x,y)
+
+    def SagnacCorrection(self, pos2):
+        '''return the Sagnac range correction. Based
+           on on RTCM2.3 appendix C. Note that this is not a symmetric error!
+	   The pos2 position should be the satellite
+        '''
+	OMGE = 7.2921151467e-5     # earth angular velocity (IS-GPS) (rad/s)
+	return OMGE*(pos2.X * self.Y - pos2.Y * self.X) / speedOfLight
+    
+    def distanceSagnac(self, pos2):
+        '''return distance taking into account Sagnac effect. Based
+           on geodist() in rtklib. Note that this is not a symmetric distance!
+	   The pos2 position should be the satellite
+
+	   Note that the Sagnac distance is an alternative to rotating
+	   the satellite positions using
+	   rangeCorrection.correctPosition(). Only one of them should
+	   be used
+        '''
+	return self.distance(pos2) + self.SagnacCorrection(pos2)
 
     def ToLLH(self):
         '''convert from ECEF to lat/lon/alt

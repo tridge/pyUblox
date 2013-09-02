@@ -4,11 +4,13 @@ estimate receiver position from RXM_RAW uBlox messages
 '''
 
 import ublox, sys
-import util, ephemeris, positionEstimate, satelliteData
+import util, ephemeris, positionEstimate, satelliteData, dataPlotter, time
 
 from optparse import OptionParser
 
 parser = OptionParser("position_estimate.py [options] <file>")
+parser.add_option("--plot", action='store_true', default=False, help="plot points")
+parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 
 (opts, args) = parser.parse_args()
 
@@ -22,6 +24,10 @@ dev = ublox.UBlox(filename)
 
 rtcmfile = open('rtcm2.dat', mode='wb')
 
+if opts.plot:
+    reference = util.ParseLLH(opts.reference).ToECEF()
+    plotter = dataPlotter.dataPlotter(reference)
+
 def position_estimate(messages, satinfo):
     '''process raw messages to calculate position
     '''
@@ -32,6 +38,10 @@ def position_estimate(messages, satinfo):
     if pos is None:
         # not enough information for a fix
         return
+
+    if opts.plot:
+        plotter.plotPosition(pos, 0)
+        plotter.plotPosition(satinfo.average_position, 1)
 
     import RTCMv2
     rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
@@ -45,7 +55,7 @@ def position_estimate(messages, satinfo):
         posecef = messages['NAV_POSECEF']
         ourpos = util.PosVector(posecef.ecefX*0.01, posecef.ecefY*0.01, posecef.ecefZ*0.01)
         posdiff = pos.distance(ourpos)
-        print("posdiff=%f pos=%s" % (posdiff, pos.ToLLH()))
+        print("posdiff=%f pos=%s avg=%s %s" % (posdiff, pos.ToLLH(), satinfo.average_position.ToLLH(), time.ctime(satinfo.raw.gps_time)))
     else:
         print("pos=%s" % (pos.ToLLH()))
     return pos
@@ -93,3 +103,5 @@ if pos_count > 0:
 else:
     print("No positions calculated")
 
+if opts.plot:
+    raw_input('Press enter')

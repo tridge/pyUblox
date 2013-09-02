@@ -19,7 +19,6 @@ parser.add_option("--log1", help="log file1", default=None)
 parser.add_option("--log2", help="log file2", default=None)
 parser.add_option("--log3", help="log file3", default=None)
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
-parser.add_option("--ref-ecef", help="reference position (x,y,z)", default=None)
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
 parser.add_option("--usePPP", type='int', default=1, help="usePPP on recv1")
@@ -28,6 +27,7 @@ parser.add_option("--dynmodel2", type='int', default=ublox.DYNAMIC_MODEL_AIRBORN
 parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv3")
 parser.add_option("--minelevation", type='float', default=10.0, help="minimum satellite elevation")
 parser.add_option("--minquality", type='int', default=6, help="minimum satellite quality")
+parser.add_option("--append", action='store_true', default=False, help='append to log file')
 
 
 (opts, args) = parser.parse_args()
@@ -36,8 +36,6 @@ def setup_port(port, log, append=False):
     dev = ublox.UBlox(port, baudrate=opts.baudrate, timeout=0.01)
     dev.set_logfile(log, append=append)
     dev.set_binary()
-    dev.min_elevation = int(opts.minelevation)
-
     dev.configure_poll_port()
     dev.configure_poll(ublox.CLASS_CFG, ublox.MSG_CFG_USB)
     dev.configure_poll(ublox.CLASS_CFG, ublox.MSG_CFG_NAVX5)
@@ -53,11 +51,11 @@ def setup_port(port, log, append=False):
     dev.configure_poll_port(ublox.PORT_USB)
     return dev
 
-dev1 = setup_port(opts.port1, opts.log1)
-dev2 = setup_port(opts.port2, opts.log2)
+dev1 = setup_port(opts.port1, opts.log1, append=opts.append)
+dev2 = setup_port(opts.port2, opts.log2, append=opts.append)
 
 if opts.port3 is not None:
-    dev3 = setup_port(opts.port3, opts.log3)
+    dev3 = setup_port(opts.port3, opts.log3, append=opts.append)
 else:
     dev3 = None
 
@@ -66,13 +64,14 @@ dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
+dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
 dev1.configure_solution_rate(rate_ms=1000)
 
 
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_DGPS, 1)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 0)
+dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELECEF, 0)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELNED, 0)
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SOL, 1)
@@ -103,7 +102,10 @@ dev2.set_preferred_usePPP(False)
 if dev3 is not None:
     dev3.set_preferred_usePPP(False)
 
-rtcmfile = open('rtcm2.dat', mode='wb')
+if opts.append:
+    rtcmfile = open('rtcm2.dat', mode='ab')
+else:
+    rtcmfile = open('rtcm2.dat', mode='wb')
 
 def position_estimate(messages, satinfo):
     '''process raw messages to calculate position
@@ -113,7 +115,6 @@ def position_estimate(messages, satinfo):
 
     pos = positionEstimate.positionEstimate(satinfo)
     if pos is None:
-        print("No fix")
         # not enough information for a fix
         return
 
@@ -158,8 +159,6 @@ messages = {}
 satinfo = satelliteData.SatelliteData()
 if opts.reference:
     satinfo.reference_position = util.ParseLLH(opts.reference).ToECEF()
-elif opts.ref_ecef:
-    satinfo.reference_position = util.PosVector(opts.ref_ecef.split(','))
 
 satinfo.min_elevation = opts.minelevation
 satinfo.min_quality = opts.minquality
@@ -167,10 +166,9 @@ satinfo.min_quality = opts.minquality
 def handle_device1(msg):
     '''handle message from reference GPS'''
     global messages, satinfo
-
+    
     if msg.name() in [ 'RXM_RAW', 'NAV_POSECEF', 'RXM_SFRB', 'RXM_RAW', 'AID_EPH', 'NAV_POSECEF' ]:
         try:
-            print(msg.name())
             msg.unpack()
             messages[msg.name()] = msg
             satinfo.add_message(msg)
@@ -180,22 +178,28 @@ def handle_device1(msg):
         handle_rxm_raw(msg)
         position_estimate(messages, satinfo)
 
-errlog = open('errlog.txt', mode='w')
-errlog.write("normal DGPS normal-XY DGPS-XY iTOW\n")
+if opts.append:
+    errlog = open('errlog.txt', mode='a')
+else:
+    errlog = open('errlog.txt', mode='w')
+    errlog.write("normal DGPS normal-XY DGPS-XY\n")
 
 def display_diff(name, pos1, pos2):
     print("%13s err: %6.2f errXY: %6.2f pos=%s" % (name, pos1.distance(pos2), pos1.distanceXY(pos2), pos1.ToLLH()))
 
+pos_count = 0
+
 def handle_device2(msg):
     '''handle message from rover GPS'''
+    global pos_count
     if msg.name() == 'NAV_DGPS':
         msg.unpack()
-        print("DGPS: age=%u numCh=%u" % (msg.age, msg.numCh))
+        print("DGPS: age=%u numCh=%u pos_count=%u" % (msg.age, msg.numCh, pos_count))
     if msg.name() == "NAV_POSECEF":
         msg.unpack()
         pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
         satinfo.recv2_position = pos
-        if satinfo.average_position is None:
+        if satinfo.average_position is None or satinfo.position_estimate is None:
             return
         print("-----------------")
         display_diff("RECV1<->RECV2", satinfo.receiver_position, pos)
@@ -204,27 +208,27 @@ def handle_device2(msg):
         display_diff("AVG<->RECV2",   satinfo.average_position, pos)
         if satinfo.reference_position is not None:
             display_diff("REF<->AVG",   satinfo.reference_position, satinfo.average_position)
-            display_diff("RECV1<->REF", satinfo.receiver_position, satinfo.reference_position)
-            display_diff("RECV2<->REF", satinfo.recv2_position, satinfo.reference_position)
+            display_diff("POS<->REF",   satinfo.position_estimate, satinfo.reference_position)
             if satinfo.rtcm_position is not None:
                 display_diff("RTCM<->REF", satinfo.rtcm_position, satinfo.reference_position)                
                 display_diff("RTCM<->RECV2", satinfo.rtcm_position, satinfo.recv2_position)                
+            display_diff("RECV1<->REF", satinfo.receiver_position, satinfo.reference_position)
+            display_diff("RECV2<->REF", satinfo.recv2_position, satinfo.reference_position)
+            pos_count += 1
             if satinfo.recv3_position is not None:
                 display_diff("RECV3<->REF", satinfo.recv3_position, satinfo.reference_position)
-                errlog.write("%f %f %f %f %f\n" % (
+                errlog.write("%f %f %f %f\n" % (
                     satinfo.reference_position.distance(satinfo.recv3_position),
                     satinfo.reference_position.distance(satinfo.recv2_position),
                     satinfo.reference_position.distanceXY(satinfo.recv3_position),
-                    satinfo.reference_position.distanceXY(satinfo.recv2_position),
-                    msg.iTOW))
+                    satinfo.reference_position.distanceXY(satinfo.recv2_position)))
                 errlog.flush()
             else:
-                errlog.write("%f %f %f %f %f\n" % (
+                errlog.write("%f %f %f %f\n" % (
                     satinfo.reference_position.distance(satinfo.receiver_position),
                     satinfo.reference_position.distance(satinfo.recv2_position),
                     satinfo.reference_position.distanceXY(satinfo.receiver_position),
-                    satinfo.reference_position.distanceXY(satinfo.recv2_position),
-                    msg.iTOW))
+                    satinfo.reference_position.distanceXY(satinfo.recv2_position)))
                 errlog.flush()
 
 def handle_device3(msg):

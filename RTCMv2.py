@@ -14,6 +14,7 @@ class RTCMBits:
         self.reset()
         self.error_history = {}
         self.last_errors = {}
+        self.last_iode = {}
 
         # if history_length is > 0 then do error averaging over
         # history_length values. If ==0 then average over samples between
@@ -25,7 +26,7 @@ class RTCMBits:
         self.stationID = 2
 
         # how often to send RTCM type 1 messages
-        self.type1_send_time = 5
+        self.type1_send_time = 2
 
         # how often to send RTCM type 3 messages
         self.type3_send_time = 10
@@ -121,12 +122,19 @@ class RTCMBits:
             ret = (ret<<1) + d[i]
         return ret
 
-    def modZCount(self):
+    def modZCount(self, satinfo):
         '''return modified Z-count'''
-        tow = self.time_of_week
+        tow = satinfo.raw.time_of_week
         toh = tow - 3600*(int(tow)//3600)
         return int(round(toh / 0.6))
         
+    def estimateAverage(self, values):
+        '''estimate an average, removing outliers'''
+        if len(values) > 50:
+            values = values[:]
+            values.sort()
+            values = values[2:-2]
+        return sum(values)/float(len(values))
 
     def calcRTCMPosition(self, satinfo, msgsatid, msgprc, scalefactors):
         '''
@@ -145,10 +153,11 @@ class RTCMBits:
             if not svid in satinfo.prSmoothed:
                 continue
 
-            pranges[svid] = satinfo.prSmoothed[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight
-#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid])
-#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.ionospheric_correction[svid])
-#            pranges[svid] = satinfo.prMeasured[svid] + satinfo.satellite_clock_error[svid]*util.speedOfLight - (satinfo.tropospheric_correction[svid] + satinfo.ionospheric_correction[svid])
+            pranges[svid] = satinfo.prSmoothed[svid]
+            pranges[svid] += satinfo.satellite_clock_error[svid]*util.speedOfLight
+#            pranges[svid] += satinfo.satellite_group_delay[svid]*util.speedOfLight
+            #pranges[svid] -= satinfo.tropospheric_correction[svid]
+            #pranges[svid] -= satinfo.ionospheric_correction[svid]
 
             pranges[svid] += err
             #print(svid, prc, err, satinfo.receiver_clock_error*util.speedOfLight, satinfo.satellite_clock_error[svid]*util.speedOfLight, satinfo.tropospheric_correction[svid], satinfo.ionospheric_correction[svid])
@@ -156,10 +165,9 @@ class RTCMBits:
         if lastpos is None:
             lastpos = util.PosVector(0,0,0)
         if len(pranges) >= 4:
-            print pranges
-            print satinfo.prCorrected
+            #print pranges
+            #print satinfo.prCorrected
             satinfo.rtcm_position = positionEstimate.positionLeastSquares_ranges(satinfo, pranges, lastpos, 0)
-
 
     def getUDRE(self, svid, weight):
         '''return a UDRE given the weighting'''
@@ -171,57 +179,43 @@ class RTCMBits:
             return 2 # <= 8m
         return 3 # > 8m
 
-
     def RTCMType1(self, satinfo):
         '''create a RTCM type 1 message'''
 
+        errors = {}
+
         for svid in satinfo.prSmoothed:
-            prAdjusted = satinfo.prSmoothed[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
+            prAdjusted = satinfo.prSmoothed[svid]
+            prAdjusted += satinfo.receiver_clock_error*util.speedOfLight
+            prAdjusted += satinfo.satellite_clock_error[svid]*util.speedOfLight
+#            prAdjusted += satinfo.satellite_group_delay[svid]*util.speedOfLight
+
             #prAdjusted -= satinfo.tropospheric_correction[svid]
             #prAdjusted -= satinfo.ionospheric_correction[svid]
 
-            err = satinfo.geometricRange[svid] - prAdjusted
+            errors[svid] = satinfo.geometricRange[svid] - prAdjusted
+
+        for svid in errors:
             if not svid in self.error_history:
                 self.error_history[svid] = []
-            self.error_history[svid].append(err)
+            self.error_history[svid].append(errors[svid])
 
-        self.time_of_week = satinfo.raw.time_of_week
-        self.gps_week = satinfo.raw.gps_week
-
-        self.iode = {}
-        for svid in satinfo.ephemeris:
-            self.iode[svid] = satinfo.ephemeris[svid].iode
-
-        return self.RTCMType1_step()
-
-    def RTCMType1_ext(self, errset, iTOW, week, iode):
-        for svid in errset:
-            if not svid in self.error_history:
-                self.error_history[svid] = []
-
-            self.error_history[svid].append(errset[svid])
-
-        self.time_of_week = iTOW
-        self.gps_week = week
-        self.iode = iode
-
-        return self.RTCMType1_step()
-
-    def RTCMType1_step(self):
-        gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
+        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
         if gpssec < self.last_type1_time + self.type1_send_time:
             return ''
 
         self.last_type1_time = gpssec
         self.reset()
 
-        tow = self.time_of_week
+        tow = satinfo.raw.time_of_week
         deltat = tow - self.last_time_of_week
 
         errors = {}
         rates = {}
         for svid in self.error_history:
             errors[svid] = sum(self.error_history[svid])/float(len(self.error_history[svid]))
+            #errors[svid] = self.estimateAverage(self.error_history[svid])
+            # check rates
             if svid in self.last_errors and deltat > 0:
                 rates[svid] = (errors[svid] - self.last_errors[svid]) / deltat
             else:
@@ -233,10 +227,15 @@ class RTCMBits:
         msgiode      = []
         msgudre      = []
         scalefactors = []
-        for svid in self.error_history:
-            if not svid in self.iode:
-                continue
 
+       # calculate UDRE values
+        weights = positionEstimate.satelliteWeightings(satinfo)
+
+        # adjust weights for deviation from average error
+        values = errors.values()
+        avg = sum(values) / len(values)
+
+        for svid in self.error_history:
             prc  = int(round(errors[svid]/0.02))
             prrc = int(round(rates[svid]/0.002))
 
@@ -252,16 +251,39 @@ class RTCMBits:
                 prrc = (prrc + 8) // 16
             prrc = min(prrc, 127)
             prrc = max(prrc, -128)
+
+            if svid in weights:
+                weight = weights[svid]
+            else:
+                weight = 0.1
+            deviation = abs(errors[svid] - avg)
+            if deviation > 10:
+                # Big deviations will cause us to skip the sat entirely
+                print('Not generating RTCM for {} due to deviation {}'.format(svid, deviation))
+                continue
+            elif deviation > 5:
+                weight *= 0.1
+            elif deviation > 2:
+                weight *= 0.5
+
             msgsatid.append(svid)
             msgprc.append(prc)
             msgprrc.append(prrc)
-            msgiode.append(self.iode[svid])
+            msgiode.append(satinfo.ephemeris[svid].iode)
             scalefactors.append(sf)
+            msgudre.append(self.getUDRE(svid, weight))
+        
+        # TEST: Every half hour, flip the weights backwards.  We will then
+        # look for good/bad areas of half-hour periodicity
+        #if (gpssec // (30 * 60)) % 2 == 0:
+        #    msgudre = [(3 - u) for u in msgudre]
 
         msgsatcnt = len(msgsatid)
         if msgsatcnt == 0:
             return ''
 
+        self.calcRTCMPosition(satinfo, msgsatid, msgprc, scalefactors)
+        
         # clear the history
         self.last_errors = errors.copy()
         if self.history_length == 0:
@@ -272,7 +294,7 @@ class RTCMBits:
                     self.error_history[svid].pop(0)
         self.last_time_of_week = tow
 
-        rtcmzcount = self.modZCount()
+        rtcmzcount = self.modZCount(satinfo)
 
         # first part of header
         self.addbits(8, 0x66)  # header id
@@ -297,7 +319,7 @@ class RTCMBits:
 
         for i in range(msgsatcnt):
             self.addbits(1, scalefactors[i])
-            self.addbits(2, 0)  # UDRE
+            self.addbits(2, msgudre[i])
             self.addbits(5, msgsatid[i]) # sat id no
             # we split the prc into two 8-bit bytes, because an RTCM word
             # boundary can occur here
@@ -315,25 +337,7 @@ class RTCMBits:
     def RTCMType3(self, satinfo):
         '''create a RTCM type 3 message'''
 
-        self.time_of_week = satinfo.raw.time_of_week
-        self.gps_week = satinfo.raw.gps_week
-
-        if satinfo.reference_position is not None:
-            self.pos = satinfo.reference_position
-        else:
-            self.pos = satinfo.average_position
-
-        return self.RTCMType3_step()
-
-    def RTCMType3_ext(self, iTOW, week, pos):
-        self.time_of_week = iTOW
-        self.gps_week = week
-        self.pos = pos
-
-        return self.RTCMType3_step()
-
-    def RTCMType3_step(self):
-        gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
+        gpssec = util.gpsTimeToTime(satinfo.raw.gps_week, satinfo.raw.time_of_week)
         if gpssec < self.last_type3_time + self.type3_send_time:
             return ''
 
@@ -341,7 +345,7 @@ class RTCMBits:
 
         self.reset()
 
-        rtcmzcount = self.modZCount()
+        rtcmzcount = self.modZCount(satinfo)
 
         self.addbits(8, 0x66)  # header id
         self.addbits(6, 3)     # msg type 1
@@ -355,7 +359,10 @@ class RTCMBits:
         self.addbits(5, 4) # word length
         self.addbits(3, 0) # health bits
 
-        pos = self.pos
+        if satinfo.reference_position is not None:
+            pos = satinfo.reference_position
+        else:
+            pos = satinfo.average_position
 
         X = int(pos.X * 100.0)
         Y = int(pos.Y * 100.0)

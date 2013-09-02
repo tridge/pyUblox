@@ -10,12 +10,14 @@ class rawPseudoRange:
         self.prMeasured   = {}
         self.cpMeasured   = {}
         self.quality      = {}
+        self.lli	  = {}
 
-    def add(self, svid, prMes, cpMes, quality):
+    def add(self, svid, prMes, cpMes, quality, lli):
         '''add a pseudo range for a given svid'''
         self.prMeasured[svid] = prMes
         self.cpMeasured[svid] = cpMes * (util.speedOfLight / 1.57542e9)
         self.quality[svid]    = quality
+        self.lli[svid]        = lli # loss of lock indicator, rinex defintion
         
 
 class SatelliteData:
@@ -31,7 +33,6 @@ class SatelliteData:
         self.average_position = None
         self.position_sum = util.PosVector(0,0,0)
         self.position_count = 0
-        self.save_files = True
 
         # the reference position given by the user, if any
         self.reference_position = None
@@ -49,6 +50,9 @@ class SatelliteData:
         # and the generated RTCM data.
         self.rtcm_position = None
 
+        # the last position calculated from smoothed pseudo ranges
+        self.position_estimate = None
+
         self.ephemeris = util.loadObject('ephemeris.dat')
         if self.ephemeris is None:
             self.ephemeris = {}
@@ -56,7 +60,7 @@ class SatelliteData:
         self.ionospheric = util.loadObject('ionospheric.dat')
         if self.ionospheric is None:
             self.ionospheric = {}
-        self.min_elevation = 5
+        self.min_elevation = 5.0
         self.min_quality = 6
 
         self.smooth = prSmooth.prSmooth()
@@ -68,8 +72,10 @@ class SatelliteData:
         self.ionospheric_correction = {}
         self.tropospheric_correction = {}
         self.satellite_clock_error = {}
+        self.satellite_group_delay = {}
         self.prCorrected = {}
         self.geometricRange = {}
+        self.raw = None
 
     def valid(self, svid):
         '''return true if we have all data for a given svid'''
@@ -82,16 +88,25 @@ class SatelliteData:
         '''add some AID_EPH ephemeris data'''
         eph = ephemeris.EphemerisData(msg)
         if eph.valid:
+            if eph.svid in self.ephemeris:
+                old_eph = self.ephemeris[eph.svid]
+            else:
+                old_eph = None
             self.ephemeris[eph.svid] = eph
-            if self.save_files:
+            if old_eph is None or old_eph != eph:
+                self.smooth.reset(eph.svid)
                 util.saveObject('ephemeris.dat', self.ephemeris)
 
     def add_RXM_SFRB(self, msg):
         '''add some RXM_SFRB subframe data'''
         ion = ephemeris.IonosphericData(msg)
         if ion.valid:
+            if msg.svid in self.ionospheric:
+                old_ion = self.ionospheric[msg.svid]
+            else:
+                old_ion = None
             self.ionospheric[msg.svid] = ion
-            if self.save_files:
+            if old_ion is None or old_ion != ion:
                 util.saveObject('ionospheric.dat', self.ionospheric)
 
     def add_RXM_RAW(self, msg):
@@ -101,7 +116,8 @@ class SatelliteData:
             self.raw.add(msg.recs[i].sv,
                          msg.recs[i].prMes,
                          msg.recs[i].cpMes,
-                         msg.recs[i].mesQI)
+                         msg.recs[i].mesQI,
+                         msg.recs[i].lli)
         # step the smoothed pseudo-ranges
         self.smooth.step(self.raw)
 

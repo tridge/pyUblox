@@ -13,11 +13,8 @@ def sv_clock_correction(satinfo, svid, transmitTime, Trel):
     eph = satinfo.ephemeris[svid]
     
     T = util.correctWeeklyTime(transmitTime - toc)
-    #print 'svid=%u T=%f transmitTime=%f toc=%f' % (svid, T, transmitTime, toc)
-    F = -4.442807633E-10
-    ec = 1.0
     
-    dTclck = eph.af0 + eph.af1 * T + eph.af2 * T * T + Trel - eph.Tgd
+    dTclck = eph.af0 + eph.af1 * T + eph.af2 * T * T + Trel # - eph.Tgd
 
     return dTclck
 
@@ -95,4 +92,32 @@ def tropospheric_correction_standard(satinfo, svid):
     dRtrop = 2.312 / sin(sqrt(El * El + 1.904E-3)) + 0.084 / sin(sqrt(El * El + 0.6854E-3))
     return dRtrop
 
+
+def tropospheric_correction_sass(satinfo, svid, pos):
+    '''tropospheric correction, based on rtklib tropmodel()'''
+    from math import pow, exp, cos, radians
+
+    humidity = 0.7
+
+    llh = pos.ToLLH()
+    altitude = llh.alt
+    lat_rad = radians(llh.lat)
+    lon_rad = radians(llh.lon)
+    elevation = radians(satinfo.elevation[svid])
+    
+    temp0 = 15.0 # temparature at sea level
+    
+    if altitude < -100.0 or 1e4 < altitude or elevation <= 0:
+        return 0.0
+    
+    pres = 1013.25 * pow(1.0 - 2.2557e-5 * altitude, 5.2568)
+    temp = temp0 - 6.5e-3 * altitude + 273.16
+    
+    e = 6.108 * humidity * exp((17.15 * temp - 4684.0) / (temp - 38.45))
+    
+    # saastamoninen model
+    z = util.gpsPi / 2.0 - elevation
+    trph = 0.0022768 * pres / (1.0 - 0.00266 * cos(2.0 * lat_rad) - 0.00028 * altitude/1e3)/cos(z)
+    trpw = 0.002277  * (1255.0 / temp + 0.05) * e / cos(z)
+    return trph+trpw
 

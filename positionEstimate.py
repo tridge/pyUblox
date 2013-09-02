@@ -11,20 +11,27 @@ def positionErrorFunction(p, data):
     recv_clockerr = p[3]
     ret = []
     for d in data:
-        satpos, prange = d
+        satpos, prange, weight = d
         dist = pos.distance(satpos)
-        ret.append(dist - (prange + util.speedOfLight*recv_clockerr))
+        ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
     return ret
 
-def positionLeastSquares_ranges(satinfo, pranges, lastpos, last_clock_error):
-    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges'''
+def positionLeastSquares_ranges(satinfo, pranges, lastpos, last_clock_error, weights=None):
+    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
+    The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
+    A weight of 1 means it has more influence on the solution
+    '''
     import scipy
     from scipy import optimize
     data = []
 
     for svid in satinfo.satpos:
         if svid in pranges:
-            data.append((satinfo.satpos[svid], pranges[svid]))
+            if weights is not None:
+                weight = weights[svid]
+            else:
+                weight = 1.0
+            data.append((satinfo.satpos[svid], pranges[svid], weight))
     p0 = [lastpos.X, lastpos.Y, lastpos.Z, last_clock_error]
     p1, ier = optimize.leastsq(positionErrorFunction, p0[:], args=(data))
     if not ier in [1, 2, 3, 4]:
@@ -33,14 +40,36 @@ def positionLeastSquares_ranges(satinfo, pranges, lastpos, last_clock_error):
     # return position and clock error
     return util.PosVector(p1[0], p1[1], p1[2], extra=p1[3])
 
+def satelliteWeightings(satinfo):
+    '''return a dictionary of weightings for the contribution to the least squares
+       for each satellite'''
+    weights = {}
+    for svid in satinfo.prSmoothed:
+        # start with the quality estimate from the receiver
+        quality = satinfo.raw.quality[svid]
+        weight = 1.0/(pow(8 - min(quality,7),2))
+
+        # add in the elevation setting. Scale to 1.0 at twice the min_elevation, and drop linearly to
+        # zero at zero elevation
+        max_el = 2*satinfo.min_elevation
+        elevation = max(min(satinfo.elevation[svid], max_el), 1)
+        weight *= 1.0 - ((max_el - elevation)/max_el)
+
+        # add in the length of the cp smoothing history
+        weight *= satinfo.smooth.weight(svid)
+
+        weights[svid] = weight
+    return weights
+
 def positionLeastSquares(satinfo):
     '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges'''
     pranges = satinfo.prCorrected
-
+    weights = satelliteWeightings(satinfo)
     newpos = positionLeastSquares_ranges(satinfo,
                                          satinfo.prCorrected,
                                          satinfo.lastpos,
-                                         satinfo.receiver_clock_error)
+                                         satinfo.receiver_clock_error,
+                                         weights)
     satinfo.lastpos = newpos
     satinfo.receiver_clock_error = newpos.extra
     return newpos
@@ -58,12 +87,6 @@ def positionEstimate(satinfo):
         if not satinfo.valid(svid):
             # we don't have ephemeris data for this space vehicle
             #print("not valid")
-            continue
-
-        if raw.quality[svid] < satinfo.min_quality:
-            # for now we will ignore raw data that isn't very high quality. It would be
-            # better to do a weighting in the least squares calculation
-            #print("low quality")
             continue
 
         # get the ephemeris and pseudo-range for this space vehicle
@@ -90,25 +113,23 @@ def positionEstimate(satinfo):
         # calculate satellite azimuth and elevation
         satPosition.calculateAzimuthElevation(satinfo, svid, satinfo.lastpos)
 
-        if satinfo.elevation[svid] < satinfo.min_elevation and satinfo.lastpos.X != 0:
-            #print("elevation %f" % satinfo.elevation[svid])
-            satinfo.satpos.pop(svid)
-            continue
-
         # calculate the satellite clock correction
         sat_clock_error = rangeCorrection.sv_clock_correction(satinfo, svid, transmitTime, Trel)
+
+        # calculate the satellite group delay
+        sat_group_delay = -satinfo.ephemeris[svid].Tgd
 
         # calculate the ionospheric range correction
         ion_corr = rangeCorrection.ionospheric_correction(satinfo, svid, transmitTime, satinfo.lastpos)
 
         # calculate the tropospheric range correction
-        tropo_corr = rangeCorrection.tropospheric_correction_standard(satinfo, svid)
+        tropo_corr = rangeCorrection.tropospheric_correction_sass(satinfo, svid, satinfo.lastpos)
 
         # get total range correction
         total_range_correction = ion_corr + tropo_corr
 
         # correct the pseudo-range for the clock and atmospheric errors
-        prCorrected = prSmooth + sat_clock_error*util.speedOfLight - total_range_correction
+        prCorrected = prSmooth + (sat_clock_error + sat_group_delay)*util.speedOfLight - total_range_correction
 
         # save the values in the satinfo object
         satinfo.prMeasured[svid] = prMes
@@ -117,6 +138,7 @@ def positionEstimate(satinfo):
         satinfo.ionospheric_correction[svid] = ion_corr
         satinfo.tropospheric_correction[svid] = tropo_corr
         satinfo.satellite_clock_error[svid] = sat_clock_error
+        satinfo.satellite_group_delay[svid] = sat_group_delay
 
     # if we got at least 4 satellites then calculate a position
     if len(satinfo.satpos) < 4:
@@ -127,6 +149,7 @@ def positionEstimate(satinfo):
     satinfo.position_sum += posestimate
     satinfo.position_count += 1
     satinfo.average_position = satinfo.position_sum / satinfo.position_count
+    satinfo.position_estimate = posestimate
 
     for svid in satinfo.prCorrected:
         if satinfo.reference_position is not None:
