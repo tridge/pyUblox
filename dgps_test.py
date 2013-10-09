@@ -19,6 +19,7 @@ parser.add_option("--log1", help="log file1", default=None)
 parser.add_option("--log2", help="log file2", default=None)
 parser.add_option("--log3", help="log file3", default=None)
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
+parser.add_option("--ecef-reference", help="reference position (X,Y,Z)")
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
 parser.add_option("--usePPP", type='int', default=1, help="usePPP on recv1")
@@ -28,6 +29,7 @@ parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORN
 parser.add_option("--minelevation", type='float', default=10.0, help="minimum satellite elevation")
 parser.add_option("--minquality", type='int', default=6, help="minimum satellite quality")
 parser.add_option("--append", action='store_true', default=False, help='append to log file')
+parser.add_option("--module-reset", action='store_true', help="cold start all the modules")
 
 
 (opts, args) = parser.parse_args()
@@ -58,6 +60,28 @@ if opts.port3 is not None:
     dev3 = setup_port(opts.port3, opts.log3, append=opts.append)
 else:
     dev3 = None
+
+if opts.module_reset:
+    dev2.module_reset(ublox.RESET_COLD, ublox.RESET_HW)
+
+    if dev3 is not None:
+        dev3.module_reset(ublox.RESET_COLD, ublox.RESET_HW)
+
+    time.sleep(1)
+    dev2.close()
+
+    if dev3 is not None:
+        dev3.close()
+
+    time.sleep(1)
+
+    dev2 = setup_port(opts.port2, opts.log2)
+
+    if opts.port3 is not None:
+        dev3 = setup_port(opts.port3, opts.log3)
+    else:
+        dev3 = None
+
 
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
@@ -157,8 +181,13 @@ last_msg3_time = time.time()
 
 messages = {}
 satinfo = satelliteData.SatelliteData()
-if opts.reference:
-    satinfo.reference_position = util.ParseLLH(opts.reference).ToECEF()
+
+if opts.reference is not None:
+    reference_position = util.ParseLLH(opts.reference).ToECEF()
+elif opts.ecef_reference is not None:
+    reference_position = util.PosVector(*opts.ecef_reference.split(','))
+else:
+    reference_position = None
 
 satinfo.min_elevation = opts.minelevation
 satinfo.min_quality = opts.minquality
