@@ -75,7 +75,6 @@ class SatelliteData:
         self.satellite_group_delay = {}
         self.prCorrected = {}
         self.geometricRange = {}
-        self.raw = None
 
     def valid(self, svid):
         '''return true if we have all data for a given svid'''
