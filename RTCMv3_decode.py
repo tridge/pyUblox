@@ -12,13 +12,15 @@ rtklib.
 
 import sys
 import bitstring as bs
-import satelliteData, util, RTCMv2
+import satPosition, util, RTCMv2
 
 from bitstring import BitStream
 
 RTCMv3_PREAMBLE = 0xD3
 PRUNIT_GPS = 299792.458
 CLIGHT = 299792458.0
+
+gpsPi          = 3.1415926535898
 
 FREQ1 =      1.57542E9
 FREQ2 =      1.22760E9
@@ -31,16 +33,39 @@ L2codes = ['CODE_L2C', 'CODE_L2P', 'CODE_L2W', 'CODE_L2W']
 
 lam_carr= [CLIGHT/FREQ1,CLIGHT/FREQ2,CLIGHT/FREQ5,CLIGHT/FREQ6,CLIGHT/FREQ7,CLIGHT/FREQ8]
 
-
 # Globals required to build v2 messages
-iode_rtcm = 0
 corr_set = {}
 statid = 0 #initially only support 1 reference station
 
-satinfo = satelliteData.SatelliteData()
+eph = {}
+prs = {}
+week = 0
+itow = 0
+
+ref_pos = None
+
+rtcm = RTCMv2.RTCMBits()
+rtcm.type1_send_time = 0
+rtcm.type3_send_time = 0
+
+logfile='satlog.txt'
+
+class DynamicEph:
+    pass
+
+satlog = None
+def save_satlog(t, errset):
+    global satlog
+    if satlog is None:
+        satlog = open(logfile, 'w')
+
+    eset = [ str(errset.get(s,'0')) for s in range(33) ]
+
+    satlog.write(str(t) + "," + ",".join(eset) + "\n")
+    satlog.flush()
+
 
 cp_hist = {}
-
 def adjcp(sat, freq, cp):
     '''Adjust carrier phase for rollover'''
     if not sat in cp_hist or cp_hist[sat] is None:
@@ -76,7 +101,7 @@ def snratio(snr):
 
 
 def decode_1004(pkt):
-    global statid, corr_set
+    global statid, itow, prs, corr_set
 
     statid = pkt.read(12).uint
 
@@ -86,6 +111,8 @@ def decode_1004(pkt):
 
     smoothed = bool(pkt.read(1).uint)
     smint = pkt.read(3).uint
+
+    prs = {}
 
     for n in range(nsat):
         svid = pkt.read(6).uint
@@ -125,11 +152,10 @@ def decode_1004(pkt):
         corr_set[svid]['SNR2'] = snratio(cnr2 * 0.25)
         corr_set[svid]['CODE2'] = L2codes[code2]
 
-        satinfo.prSmoothed[svid] = corr_set[svid]['P1']
+        prs[svid] = corr_set[svid]['P1']
         
-    satinfo.raw.time_of_week = tow
+    itow = tow
 
-    #print(corr_set)
 
 def decode_1006(pkt):
     global ref_pos
@@ -150,8 +176,7 @@ def decode_1006(pkt):
     ref_z = pkt.read(38).int * 0.0001
     anth = pkt.read(16).uint * 0.0001
  
-    satinfo.reference_position = [ref_x, ref_y, ref_z]
-    satinfo.receiver_position = [ref_x, ref_y, ref_z]
+    ref_pos = [ref_x, ref_y, ref_z]
 
 
 def decode_1033(pkt):
@@ -190,7 +215,7 @@ def decode_1033(pkt):
     
 
 def decode_1019(pkt):
-    global satinfo
+    global eph, week
 
     svid = pkt.read(6).uint
     week = pkt.read(10).uint
@@ -223,81 +248,156 @@ def decode_1019(pkt):
     l2p = pkt.read(1).uint
     fit = pkt.read(1).uint
 
-    satinfo.ephemeris[svid].crs = crs
-    satinfo.ephemeris[svid].deltaN = deltan
-    satinfo.ephemeris[svid].M0 = m0
-    satinfo.ephemeris[svid].cuc = cuc
-    satinfo.ephemeris[svid].ecc = e
-    satinfo.ephemeris[svid].cus = cus
-    satinfo.ephemeris[svid].A = rootA * rootA
-    satinfo.ephemeris[svid].toe = toe
-    satinfo.ephemeris[svid].cic = cic
-    satinfo.ephemeris[svid].omega0 = omega0
-    satinfo.ephemeris[svid].cis = cis
-    satinfo.ephemeris[svid].i0 = i0
-    satinfo.ephemeris[svid].crc = crc
-    satinfo.ephemeris[svid].omega = omega
-    satinfo.ephemeris[svid].omega_dot = omegadot
-    satinfo.ephemeris[svid].idot = idot
-    satinfo.ephemeris[svid].iode = iode
+    eph[svid] = DynamicEph()
 
-    satinfo.raw.gps_week = week
+    eph[svid].crs = crs         * pow(2, -5)
+    eph[svid].cuc = cuc         * pow(2, -29)
+    eph[svid].cus = cus         * pow(2, -29)
+    eph[svid].cic = cic         * pow(2, -29)
+    eph[svid].cis = cis         * pow(2, -29)
+    eph[svid].crc = crc         * pow(2, -5)
+
+    eph[svid].deltaN = deltan   * pow(2, -43) * gpsPi
+    eph[svid].M0 = m0           * pow(2, -31) * gpsPi
+    eph[svid].ecc = e           * pow(2, -33)
+    eph[svid].A = pow(rootA     * pow(2, -19), 2)
+    eph[svid].omega0 = omega0   * pow(2, -31) * gpsPi
+    eph[svid].i0 = i0           * pow(2, -31) * gpsPi
+    eph[svid].omega = omega     * pow(2, -31) * gpsPi
+    eph[svid].omega_dot = omegadot* pow(2, -43) * gpsPi
+
+    eph[svid].toe = toe         * pow(2, 4)
+    eph[svid].idot = idot       * pow(2, -43) * gpsPi
+    eph[svid].iode = iode
+    eph[svid].toc = toc         * pow(2, 4)
+    eph[svid].Tgd = tgd         * pow(2, -31)
+    eph[svid].af0 = af0         * pow(2, -31)
+    eph[svid].af1 = af1         * pow(2, -43)
+    eph[svid].af2 = af2         * pow(2, -55)
+
 
 def regen_v2_type1():
-    try:
-        msg = RTCMv2.generateRTCM2_Message1(satinfo)
-        if len(msg) > 0:
-            print(msg)
-    except Exception as e:
-        print e
+
+    if ref_pos is None:
+        return
+
+    errset = {}
+    for svid in prs:
+
+        if svid not in eph:
+            print("Don't have ephemeris for {}, only {}".format(svid, eph.keys()))
+            continue
+
+        toc = eph[svid].toc
+        tof = prs[svid] / util.speedOfLight
+
+        # assume the time_of_week is the exact receiver time of week that the message arrived.
+        # subtract the time of flight to get the satellite transmit time
+        transmitTime = itow - tof
+    
+        T = util.correctWeeklyTime(transmitTime - toc)
+
+        satpos = satPosition.satPosition_raw(eph[svid], svid, transmitTime)
+        Trel = satpos.extra
+
+        satPosition.correctPosition_raw(satpos, tof)
+
+        geo = satpos.distance(util.PosVector(*ref_pos))
+    
+        dTclck = eph[svid].af0 + eph[svid].af1 * T + eph[svid].af2 * T * T + Trel - eph[svid].Tgd
+
+        # Incoming PR is already corrected for receiver clock bias
+        prAdjusted = prs[svid] + dTclck * util.speedOfLight
+
+        errset[svid] = geo - prAdjusted
+
+    save_satlog(itow, errset)
+
+    iode = {}
+    for svid in eph:
+        iode[svid] = eph[svid].iode
+
+    msg = rtcm.RTCMType1_ext(errset, itow, week, iode)
+    if len(msg) > 0:
+        return msg
 
 def regen_v2_type3():
-    try:
-        msg = RTCMv2.generateRTCM2_Message3(satinfo)
-        if len(msg) > 0:
-            print(msg)
-
-    except Exception as e:
-        print e
+    msg = rtcm.RTCMType3_ext(itow, week, util.PosVector(*ref_pos))
+    if len(msg) > 0:
+        return msg
 
 
 def parse_rtcmv3(pkt):
     pkt_type = pkt.read(12).uint
 
+    print pkt_type,
+
     if pkt_type == 1004:
         decode_1004(pkt)
-        regen_v2_type1()
+        return regen_v2_type1()
     elif pkt_type == 1006:
         decode_1006(pkt)
-        regen_v2_type3()
+        return regen_v2_type3()
+    elif pkt_type == 1019:
+        decode_1019(pkt)
     elif pkt_type == 1033:
         decode_1033(pkt)
     else:
-        print("Ignore {}".format(pkt_type))
+        print "Ignore",
 
-while True:
-    d = ord(sys.stdin.read(1))
-    if d != RTCMv3_PREAMBLE:
-        continue
+    print('')
 
-    pack_stream = BitStream()
 
-    l1 = ord(sys.stdin.read(1))
-    l2 = ord(sys.stdin.read(1))
 
-    pack_stream.append(bs.pack('2*uint:8', l1, l2))
-    pack_stream.read(6)
-    pkt_len = pack_stream.read(10).uint
+def RTCM_converter_thread(server, username, password, mountpoint, rtcm_callback = None):
+    import subprocess
 
-    pkt = sys.stdin.read(pkt_len)
-    parity = sys.stdin.read(3)
+    nt = subprocess.Popen(["./ntripclient",
+                            "--server", server,
+                            "--password", password,
+                            "--user", username,
+                            "--mountpoint", mountpoint ],
+                            stdout=subprocess.PIPE)
 
-    if True: #TODO check parity
-        for d in pkt:
-            pack_stream.append(bs.pack('uint:8',ord(d)))
 
-        parse_rtcmv3(pack_stream)
+    if nt is None or nt.stdout is None:
+        indev = sys.stdin
+    else:
+        indev = nt.stdout
 
+    print("RTCM using input {}".format(indev))
+
+    while True:
+        d = ord(indev.read(1))
+        if d != RTCMv3_PREAMBLE:
+            continue
+
+        pack_stream = BitStream()
+
+        l1 = ord(indev.read(1))
+        l2 = ord(indev.read(1))
+
+        pack_stream.append(bs.pack('2*uint:8', l1, l2))
+        pack_stream.read(6)
+        pkt_len = pack_stream.read(10).uint
+
+        pkt = indev.read(pkt_len)
+        parity = indev.read(3)
+
+        if True: #TODO check parity
+            for d in pkt:
+                pack_stream.append(bs.pack('uint:8',ord(d)))
+
+            msg = parse_rtcmv3(pack_stream)
+
+            if msg is not None and rtcm_callback is not None:
+                rtcm_callback(msg)
+
+def run_RTCM_converter(server, user, passwd, mount, rtcm_callback=None):
+    import threading
+
+    t = threading.Thread(target=RTCM_converter_thread, args=(server, user, passwd, mount, rtcm_callback,))
+    t.start()
 
 
 
