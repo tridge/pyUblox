@@ -12,17 +12,23 @@ import util, ublox
 parser = OptionParser("satlog_plot.py [options]")
 parser.add_option("--errlog", help="Position error log", default='errlog.txt')
 parser.add_option("--target", type=int, help="Sample number around which to examine", default=None)
-parser.add_option("--window", type=int, help="Window around target sample point to examine", default=1000)
+parser.add_option("--window", type=int, help="Samples over which to average", default=1000)
 parser.add_option("--badness-thresh", type=float, help="Extra error introduced by DGPS procedure before a segment is marked bad", default=2)
 parser.add_option("--ubx-log", help="Optional uBlox log file from which Ephemerides might be extracted", default='port1.log')
 parser.add_option("--save-pos", help="Save satellite positions once parsed from UBX log", default=None)
 parser.add_option("--load-pos", help="Load a previously saved satellite position log", default=None)
 parser.add_option("--skip-plot", help="Rate at which to decimate samples when plotting", default=100)
-parser.add_option("--plot-clusters", help="Plot skyviews split in to performance clusters", action='store_true')
+parser.add_option("--plot-skymap", help="Plot skymap for sats with residual over n metres, -1 for disable", type=int, default=-1)
+parser.add_option("--plot-clusters", help="Plot skymap for sats with residual over n metres, split in to performance clusters, -1 for disable", type=int, default=-1)
 parser.add_option("--split-by-time", type=float, default=None, help="Plot the error performance split in to periods")
 parser.add_option("--timezone", type=float, default=10.0, help="Receiver time zone, used only to display good plot labels")
 
 (opts, args) = parser.parse_args()
+
+if opts.plot_clusters >= 0 and opts.plot_skymap >= 0 and opts.plot_clusters != opts.plot_skymap:
+    print("Limitation: Can't have skymap and clusters plotted at different residuals, highest will be used for both")
+
+sat_prthres = max(opts.plot_clusters, opts.plot_skymap)
 
 sat_errs = []
 max_svid = 33
@@ -43,19 +49,20 @@ def gps_to_time(t):
 def format_time(time):
     return "{}:{}".format(int(time[1]), int(time[2]))
 
-sat_el, sat_az = None, None
+sat_el, sat_az, sat_res = None, None, None
 t_first = 0
 t_last = 0
 t_wrap = 0
 
 if opts.load_pos is not None:
     t_first = util.loadObject(opts.load_pos + '.stamp')
-    if opts.plot_clusters:
-        sat_el, sat_az = util.loadObject(opts.load_pos)
+    if opts.plot_clusters >= 0 or opts.plot_skymap >= 0:
+        sat_el, sat_az, sat_res = util.loadObject(opts.load_pos)
 
     print("Loaded")
 
-if (sat_el is None or sat_az is None or t_first is None) and opts.plot_clusters:
+if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
+        and (opts.plot_clusters >= 0 or opts.plot_skymap >= 0):
     print("Parsing UBX")
     dev = ublox.UBlox(opts.ubx_log)
     # Create storage for all sats (inc SBAS), 80 hours, (elev,azim); this is sparse so
@@ -64,6 +71,7 @@ if (sat_el is None or sat_az is None or t_first is None) and opts.plot_clusters:
     # but they don't..
     sat_el = scipy.sparse.lil_matrix((80*60*60, 140))
     sat_az = scipy.sparse.lil_matrix((80*60*60, 140))
+    sat_res = scipy.sparse.lil_matrix((80*60*60, 140))
 
 
     while True:
@@ -91,11 +99,13 @@ if (sat_el is None or sat_az is None or t_first is None) and opts.plot_clusters:
             for s in msg.recs:
                 if not s.flags & 1: # ignore svs not used in soln
                     continue
+
                 sat_el[t - t_first, s.svid] = s.elev
                 sat_az[t - t_first, s.svid] = s.azim
+                sat_res[t - t_first, s.svid] = s.prRes / 100.   # Resid in cm
 
 if opts.save_pos is not None:
-    util.saveObject(opts.save_pos, (sat_el, sat_az))
+    util.saveObject(opts.save_pos, (sat_el, sat_az, sat_res))
     util.saveObject(opts.save_pos + '.stamp', t_first)
     print("Saved OK")
 
@@ -175,9 +185,16 @@ for i in range(nplots):
     ax.plot(p_err[i * plen: min(len(rel_err), (i+1)*plen)], color='red')
     ax.plot(dg_err[i * plen: min(len(rel_err), (i+1)*plen)], color='green')
 
-if opts.plot_clusters:
-    plt.figure()
-    plt.suptitle("Bad Clump Constellations")
+b_els = []
+b_azs = []
+g_els = []
+g_azs = []
+
+if opts.plot_clusters >= 0 or opts.plot_skymap >= 0:
+
+    if opts.plot_clusters >= 0:
+        plt.figure()
+        plt.suptitle("Bad Clump Constellations")
     # Bad clumps
 
     # Slight trickery: returns a list of tuples where each tuple contains
@@ -195,12 +212,17 @@ if opts.plot_clusters:
     for plot, clump in enumerate(clumps):
 
         els = []
-        for i in range(clump[0],clump[1], opts.skip_plot):
-            els.append([math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]])
-
         azs = []
-        for i in range(clump[0], clump[1], opts.skip_plot):
-            azs.append([a * math.pi / 180. for a in sat_az[i,:].toarray()[0]])
+        for i in range(clump[0],clump[1], opts.skip_plot):
+            r = [abs(r) > sat_prthres for r in sat_res[i,:].toarray()[0] ]
+            e = [math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]]
+            a = [a * math.pi / 180. for a in sat_az[i,:].toarray()[0]]
+            
+            e = map((lambda a,b:a*b), r, e)
+            a = map((lambda a,b:a*b), r, a)
+
+            els.append(e)
+            azs.append(a)
 
         # This hideous lump of bollocks scans through the position arrays and ensures
         # that any zero-entries at the beginning or end are set to the first/last non-
@@ -231,11 +253,15 @@ if opts.plot_clusters:
                     els[i - 1][svid] = els[i][svid]
                     azs[i - 1][svid] = azs[i][svid]
 
+        b_els.append(els)
+        b_azs.append(azs)
 
-
-        ax = plt.subplot(rows, cols, plot + 1, polar=True)
-        ax.set_rmax(1.0)
-        ax.plot(azs, els)
+        if opts.plot_clusters >= 0:
+            ax = plt.subplot(rows, cols, plot + 1, polar=True)
+            ax.set_rmax(1.0)
+            ax.set_theta_offset(math.pi / 2)
+            ax.set_theta_direction(-1)
+            ax.plot(azs, els)
 
 
     # Good clumps
@@ -247,18 +273,24 @@ if opts.plot_clusters:
     cols = 3.
     rows = math.ceil(len(clumps) / cols)
 
-    plt.figure()
-    plt.suptitle("Good Clump Constellations")
+    if opts.plot_clusters >= 0:
+        plt.figure()
+        plt.suptitle("Good Clump Constellations")
 
     for plot, clump in enumerate(clumps):
 
         els = []
-        for i in range(clump[0],clump[1], opts.skip_plot):
-            els.append([math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]])
-
         azs = []
-        for i in range(clump[0], clump[1], opts.skip_plot):
-            azs.append([a * math.pi / 180. for a in sat_az[i,:].toarray()[0]])
+        for i in range(clump[0],clump[1], opts.skip_plot):
+            r = [abs(r) > sat_prthres for r in sat_res[i,:].toarray()[0] ]
+            e = [math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]]
+            a = [a * math.pi / 180. for a in sat_az[i,:].toarray()[0]]
+            
+            e = map((lambda a,b:a*b), r, e)
+            a = map((lambda a,b:a*b), r, a)
+
+            els.append(e)
+            azs.append(a)
 
         for i in range(1,len(els)):
             for svid in range(len(els[i])):
@@ -284,9 +316,36 @@ if opts.plot_clusters:
                     els[i - 1][svid] = els[i][svid]
                     azs[i - 1][svid] = azs[i][svid]
 
-        ax = plt.subplot(rows, cols, plot + 1, polar=True)
-        ax.set_rmax(1.0)
-        ax.plot(azs, els)
+        g_els.append(els)
+        g_azs.append(azs)
+
+        if opts.plot_clusters >= 0:
+            ax = plt.subplot(rows, cols, plot + 1, polar=True)
+            ax.set_rmax(1.0)
+            ax.set_theta_offset(math.pi / 2)
+            ax.set_theta_direction(-1)
+            ax.plot(azs, els)
+
+if opts.plot_skymap >= 0:
+    plt.figure()
+    plt.suptitle("Good Skyviews")
+    ax = plt.subplot(1,1,1,polar=True)
+    ax.set_rmax(1.0)
+    ax.set_theta_offset(math.pi / 2)
+    ax.set_theta_direction(-1)
+
+    for i in range(len(g_azs)):
+        ax.plot(g_azs[i], g_els[i])
+
+    plt.figure()
+    plt.suptitle("Bad Skyviews")
+    ax = plt.subplot(1,1,1,polar=True)
+    ax.set_rmax(1.0)
+    ax.set_theta_offset(math.pi / 2)
+    ax.set_theta_direction(-1)
+
+    for i in range(len(b_azs)):
+        ax.plot(b_azs[i], b_els[i])
 
 plt.show()
 
