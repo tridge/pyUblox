@@ -5,15 +5,17 @@ Thanks to Paul Riseborough for lots of help with this!
 
 import util
 
+
 def satPosition(satinfo, svid, transmitTime):
+    satinfo.satpos[svid] = satPosition_raw(satinfo.ephemeris[svid], svid, transmitTime)
+
+def satPosition_raw(eph, svid, transmitTime):
     '''calculate satellite position
     Based upon http://home-2.worldonline.nl/~samsvl/stdalone.pas
 
     This fills in the satpos element of the satinfo object
     '''
     from math import sqrt, atan, sin, cos
-    
-    eph = satinfo.ephemeris[svid]
 
     # WGS 84 value of earth's univ. grav. par.
     mu = 3.986005E+14
@@ -59,6 +61,8 @@ def satPosition(satinfo, svid, transmitTime):
         E = M + ec * sin(E)
         if abs(E - Eold) < 1.0e-12:
             break
+    else:
+        print("WARNING: Kepler Eqn didn't converge")
 
     snu = sqrt(1 - ec*ec) * sin(E) / (1 - ec*cos(E))
     cnu = (cos(E) - ec) / (1 - ec*cos(E))
@@ -96,9 +100,12 @@ def satPosition(satinfo, svid, transmitTime):
     # relativistic correction term
     satpos.extra = F * ec * sqrt(A) * sin(E)
 
-    satinfo.satpos[svid] = satpos
+    return satpos
 
 def correctPosition(satinfo, svid, time_of_flight):
+    corerctPosition_raw(satinfo.satpos[svid], time_of_flight)
+
+def correctPosition_raw(satpos, time_of_flight):
     '''correct the satellite position for the time it took the message to get to the receiver'''
     from math import sin, cos
     
@@ -106,7 +113,6 @@ def correctPosition(satinfo, svid, time_of_flight):
     We = 7.292115E-5
     
     alpha = time_of_flight * We
-    satpos = satinfo.satpos[svid]
     X = satpos.X
     Y = satpos.Y
     satpos.X = X * cos(alpha) + Y * sin(alpha)
