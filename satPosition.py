@@ -103,7 +103,7 @@ def satPosition_raw(eph, svid, transmitTime):
     return satpos
 
 def correctPosition(satinfo, svid, time_of_flight):
-    corerctPosition_raw(satinfo.satpos[svid], time_of_flight)
+    correctPosition_raw(satinfo.satpos[svid], time_of_flight)
 
 def correctPosition_raw(satpos, time_of_flight):
     '''correct the satellite position for the time it took the message to get to the receiver'''
