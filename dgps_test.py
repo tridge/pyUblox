@@ -61,6 +61,7 @@ if opts.port3 is not None:
 else:
     dev3 = None
 
+
 if opts.module_reset:
     dev2.module_reset(ublox.RESET_COLD, ublox.RESET_HW)
 
@@ -183,11 +184,12 @@ messages = {}
 satinfo = satelliteData.SatelliteData()
 
 if opts.reference is not None:
-    reference_position = util.ParseLLH(opts.reference).ToECEF()
+    satinfo.reference_position = util.ParseLLH(opts.reference).ToECEF()
 elif opts.ecef_reference is not None:
-    reference_position = util.PosVector(*opts.ecef_reference.split(','))
+    satinfo.reference_position = util.PosVector(*opts.ecef_reference.split(','))
 else:
-    reference_position = None
+    satinfo.reference_position = None
+
 
 satinfo.min_elevation = opts.minelevation
 satinfo.min_quality = opts.minquality
