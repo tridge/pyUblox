@@ -29,6 +29,10 @@ elif not resp.startswith("HTTP/1.1 200 OK"):
 
 try:
     while True:
+        # There are some length bytes at the head here but it actually
+        # seems more robust to simply let the higher level RTCMv3 parser
+        # frame everything itself and bin the garbage as required.
+
         #length = s.recv(4)
 
         #try:
