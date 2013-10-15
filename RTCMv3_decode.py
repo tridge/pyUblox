@@ -349,7 +349,7 @@ def parse_rtcmv3(pkt):
 
 
 
-def RTCM_converter_thread(server, username, password, mountpoint, rtcm_callback = None):
+def RTCM_converter_thread(server, port, username, password, mountpoint, rtcm_callback = None):
     import subprocess
 
     nt = subprocess.Popen(["./ntripclient",
