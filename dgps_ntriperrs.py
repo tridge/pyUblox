@@ -29,6 +29,7 @@ parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORN
 parser.add_option("--module-reset", action='store_true', help="cold start all the modules")
 
 parser.add_option("--ntrip-server")
+parser.add_option("--ntrip-port", type='int', default=2101)
 parser.add_option("--ntrip-user")
 parser.add_option("--ntrip-password")
 parser.add_option("--ntrip-mount")
