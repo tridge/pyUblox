@@ -285,7 +285,7 @@ def regen_v2_type1():
     for svid in prs:
 
         if svid not in eph:
-            print("Don't have ephemeris for {}, only {}".format(svid, eph.keys()))
+            #print("Don't have ephemeris for {}, only {}".format(svid, eph.keys()))
             continue
 
         toc = eph[svid].toc
@@ -330,7 +330,7 @@ def regen_v2_type3():
 def parse_rtcmv3(pkt):
     pkt_type = pkt.read(12).uint
 
-    print pkt_type,
+    print pkt_type
 
     if pkt_type == 1004:
         decode_1004(pkt)
