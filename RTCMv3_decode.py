@@ -342,21 +342,22 @@ def parse_rtcmv3(pkt):
         decode_1019(pkt)
     elif pkt_type == 1033:
         decode_1033(pkt)
-    else:
-        print "Ignore",
-
-    print('')
+    #else:
+    #    print "Ignore"
 
 
 
 def RTCM_converter_thread(server, port, username, password, mountpoint, rtcm_callback = None):
     import subprocess
 
-    nt = subprocess.Popen(["./ntripclient",
+    """nt = subprocess.Popen(["./ntripclient",
                             "--server", server,
                             "--password", password,
                             "--user", username,
                             "--mountpoint", mountpoint ],
+                            stdout=subprocess.PIPE)"""
+
+    nt = subprocess.Popen(["./ntrip.py", server, str(port), username, password, mountpoint],
                             stdout=subprocess.PIPE)
 
 
@@ -368,21 +369,27 @@ def RTCM_converter_thread(server, port, username, password, mountpoint, rtcm_cal
     print("RTCM using input {}".format(indev))
 
     while True:
-        d = ord(indev.read(1))
+        sio = indev
+
+        d = ord(sio.read(1))
         if d != RTCMv3_PREAMBLE:
             continue
 
         pack_stream = BitStream()
 
-        l1 = ord(indev.read(1))
-        l2 = ord(indev.read(1))
+        l1 = ord(sio.read(1))
+        l2 = ord(sio.read(1))
 
         pack_stream.append(bs.pack('2*uint:8', l1, l2))
         pack_stream.read(6)
         pkt_len = pack_stream.read(10).uint
 
-        pkt = indev.read(pkt_len)
-        parity = indev.read(3)
+        pkt = sio.read(pkt_len)
+        parity = sio.read(3)
+
+        if len(pkt) != pkt_len:
+            print "Length error {} {}".format(len(pkt), pkt_len)
+            continue
 
         if True: #TODO check parity
             for d in pkt:
