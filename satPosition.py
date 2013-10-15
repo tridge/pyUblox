@@ -62,7 +62,7 @@ def satPosition_raw(eph, svid, transmitTime):
         if abs(E - Eold) < 1.0e-12:
             break
     else:
-        print("WARNING: Kepler Eqn didn't converge")
+        print("WARNING: Kepler Eqn didn't converge for sat {} (last step {})".format(svid, E - Eold))
 
     snu = sqrt(1 - ec*ec) * sin(E) / (1 - ec*cos(E))
     cnu = (cos(E) - ec) / (1 - ec*cos(E))
