@@ -12,7 +12,7 @@ header =\
 "GET /{} HTTP/1.1\r\n".format(mountpoint) +\
 "Host \r\n".format(server) +\
 "Ntrip-Version: Ntrip/2.0\r\n" +\
-"User-Agent: NTRIP NtripClientPOSIX/1.50\r\n" +\
+"User-Agent: NTRIP pyUblox/0.0\r\n" +\
 "Connection: close\r\n" +\
 "Authorization: Basic {}\r\n\r\n".format(pwd)
 
