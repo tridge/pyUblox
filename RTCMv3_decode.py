@@ -393,11 +393,17 @@ def RTCM_converter_thread(server, username, password, mountpoint, rtcm_callback 
             if msg is not None and rtcm_callback is not None:
                 rtcm_callback(msg)
 
-def run_RTCM_converter(server, user, passwd, mount, rtcm_callback=None):
+def run_RTCM_converter(server, port, user, passwd, mount, rtcm_callback=None):
     import threading
 
-    t = threading.Thread(target=RTCM_converter_thread, args=(server, user, passwd, mount, rtcm_callback,))
+    t = threading.Thread(target=RTCM_converter_thread, args=(server, port, user, passwd, mount, rtcm_callback,))
     t.start()
+
+def _printer(p):
+    print(p)
+
+if __name__ == '__main__':
+    RTCM_converter_thread('192.104.43.25', 2101, sys.argv[1], sys.argv[2], 'TID10', _printer)
 
 
 
