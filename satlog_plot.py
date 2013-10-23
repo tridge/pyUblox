@@ -11,6 +11,7 @@ import util, ublox
 
 parser = OptionParser("satlog_plot.py [options]")
 parser.add_option("--errlog", help="Position error log", default='errlog.txt')
+parser.add_option("--satlog", help="Satellite residual log", default='satlog.txt')
 parser.add_option("--target", type=int, help="Sample number around which to examine", default=None)
 parser.add_option("--window", type=int, help="Samples over which to average", default=1000)
 parser.add_option("--badness-thresh", type=float, help="Extra error introduced by DGPS procedure before a segment is marked bad", default=2)
@@ -63,16 +64,44 @@ if opts.load_pos is not None:
 
 if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
         and (opts.plot_clusters >= 0 or opts.plot_skymap >= 0):
-    print("Parsing UBX")
-    dev = ublox.UBlox(opts.ubx_log)
-    # Create storage for all sats (inc SBAS), 80 hours, (elev,azim); this is sparse so
+    # Create storage for all sats (inc SBAS), 200 hours, (elev,azim,resid); this is sparse so
     # overestimating time doesn't hurt and we trim it back before using
     # it below anyway.  This would be nicer if sparse arrays supported tuple elements
     # but they don't..
-    sat_el = scipy.sparse.lil_matrix((80*60*60, 140))
-    sat_az = scipy.sparse.lil_matrix((80*60*60, 140))
-    sat_res = scipy.sparse.lil_matrix((80*60*60, 140))
+    sat_el = scipy.sparse.lil_matrix((200*60*60, 140))
+    sat_az = scipy.sparse.lil_matrix((200*60*60, 140))
+    sat_res = scipy.sparse.lil_matrix((200*60*60, 140))
 
+    print("Loading residuals")
+    with open(opts.satlog) as f:
+        for l in f:
+            a = l.split(',')
+            
+            t = float(a[0])
+
+            if t_first == 0:
+                t_first = t
+
+            if t_last != 0 and t - t_last >= 2:
+                print("Missed Epoch")
+
+            if t < t_first and t_wrap == 0:
+                t_wrap = t_last
+
+            t += t_wrap
+
+            t_last = t
+
+            for sv, resid in enumerate(a[1:]): # Cut off the leading timestamp
+                if float(resid) != 0:
+                    sat_res[t - t_first, sv] = float(resid)
+
+    t_first = 0
+    t_last = 0
+    t_wrap = 0
+
+    print("Parsing UBX")
+    dev = ublox.UBlox(opts.ubx_log)
 
     while True:
         '''process the ublox messages, extracting the ones we need for the sat position'''
@@ -102,7 +131,7 @@ if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
 
                 sat_el[t - t_first, s.svid] = s.elev
                 sat_az[t - t_first, s.svid] = s.azim
-                sat_res[t - t_first, s.svid] = s.prRes / 100.   # Resid in cm
+                #sat_res[t - t_first, s.svid] = s.prRes / 100.   # Resid in cm
 
 if opts.save_pos is not None:
     util.saveObject(opts.save_pos, (sat_el, sat_az, sat_res))
@@ -217,7 +246,7 @@ if opts.plot_clusters >= 0 or opts.plot_skymap >= 0:
             r = [abs(r) > sat_prthres for r in sat_res[i,:].toarray()[0] ]
             e = [math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]]
             a = [a * math.pi / 180. for a in sat_az[i,:].toarray()[0]]
-            
+
             e = map((lambda a,b:a*b), r, e)
             a = map((lambda a,b:a*b), r, a)
 
