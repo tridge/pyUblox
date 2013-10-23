@@ -133,6 +133,7 @@ else:
     rtcmfile = open('rtcm2.dat', mode='wb')
 
 logfile = 'satlog-local.txt'
+satlog = None
 def save_satlog(t, errset):
     global satlog
     if satlog is None:
