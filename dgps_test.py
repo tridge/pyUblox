@@ -132,6 +132,17 @@ if opts.append:
 else:
     rtcmfile = open('rtcm2.dat', mode='wb')
 
+logfile = 'satlog-local.txt'
+def save_satlog(t, errset):
+    global satlog
+    if satlog is None:
+        satlog = open(logfile, 'w')
+
+    eset = [ str(errset.get(s,'0')) for s in range(33) ]
+
+    satlog.write(str(t) + "," + ",".join(eset) + "\n")
+    satlog.flush()
+
 def position_estimate(messages, satinfo):
     '''process raw messages to calculate position
     '''
@@ -157,6 +168,12 @@ def position_estimate(messages, satinfo):
         if not opts.nortcm:
             dev2.write(rtcm)
     
+    errset = {}
+    for svid in satinfo.rtcm_bits.error_history:
+        errset[svid] = satinfo.rtcm_bits.error_history[svid][:-1]
+
+    save_satlog(rxm_raw.iTOW, errset)
+
     return pos
 
 # which SV IDs we have seen
