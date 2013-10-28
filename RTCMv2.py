@@ -205,11 +205,11 @@ class RTCMBits:
         self.gps_week = week
         self.iode = iode
 
-        return self.RTCMType1_step()
+        return self.RTCMType1_step(False)
 
-    def RTCMType1_step(self):
+    def RTCMType1_step(self, throttle=True):
         gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
-        if gpssec < self.last_type1_time + self.type1_send_time:
+        if gpssec < self.last_type1_time + self.type1_send_time and throttle:
             return ''
 
         self.last_type1_time = gpssec
@@ -330,11 +330,11 @@ class RTCMBits:
         self.gps_week = week
         self.pos = pos
 
-        return self.RTCMType3_step()
+        return self.RTCMType3_step(False)
 
-    def RTCMType3_step(self):
+    def RTCMType3_step(self, throttle=True):
         gpssec = util.gpsTimeToTime(self.gps_week, self.time_of_week)
-        if gpssec < self.last_type3_time + self.type3_send_time:
+        if gpssec < self.last_type3_time + self.type3_send_time and throttle:
             return ''
 
         self.last_type3_time = gpssec
