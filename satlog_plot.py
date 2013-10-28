@@ -11,7 +11,7 @@ import util, ublox
 
 parser = OptionParser("satlog_plot.py [options]")
 parser.add_option("--errlog", help="Position error log", default='errlog.txt')
-parser.add_option("--satlog", help="Satellite residual log", default='satlog.txt')
+parser.add_option("--satlog", help="Satellite residual log", default=None)
 parser.add_option("--target", type=int, help="Sample number around which to examine", default=None)
 parser.add_option("--window", type=int, help="Samples over which to average", default=1000)
 parser.add_option("--badness-thresh", type=float, help="Extra error introduced by DGPS procedure before a segment is marked bad", default=2)
@@ -72,33 +72,34 @@ if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
     sat_az = scipy.sparse.lil_matrix((200*60*60, 140))
     sat_res = scipy.sparse.lil_matrix((200*60*60, 140))
 
-    print("Loading residuals")
-    with open(opts.satlog) as f:
-        for l in f:
-            a = l.split(',')
-            
-            t = float(a[0])
+    if opts.satlog is not None:
+        print("Loading residuals")
+        with open(opts.satlog) as f:
+            for l in f:
+                a = l.split(',')
+                
+                t = float(a[0])
 
-            if t_first == 0:
-                t_first = t
+                if t_first == 0:
+                    t_first = t
 
-            if t_last != 0 and t - t_last >= 2:
-                print("Missed Epoch")
+                if t_last != 0 and t - t_last >= 2:
+                    print("Missed Epoch")
 
-            if t < t_first and t_wrap == 0:
-                t_wrap = t_last
+                if t < t_first and t_wrap == 0:
+                    t_wrap = t_last
 
-            t += t_wrap
+                t += t_wrap
 
-            t_last = t
+                t_last = t
 
-            for sv, resid in enumerate(a[1:]): # Cut off the leading timestamp
-                if float(resid) != 0:
-                    sat_res[t - t_first, sv] = float(resid)
+                for sv, resid in enumerate(a[1:]): # Cut off the leading timestamp
+                    if float(resid) != 0:
+                        sat_res[t - t_first, sv] = float(resid)
 
-    t_first = 0
-    t_last = 0
-    t_wrap = 0
+        t_first = 0
+        t_last = 0
+        t_wrap = 0
 
     print("Parsing UBX")
     dev = ublox.UBlox(opts.ubx_log)
@@ -131,7 +132,9 @@ if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
 
                 sat_el[t - t_first, s.svid] = s.elev
                 sat_az[t - t_first, s.svid] = s.azim
-                #sat_res[t - t_first, s.svid] = s.prRes / 100.   # Resid in cm
+
+                if opts.satlog is None:
+                    sat_res[t - t_first, s.svid] = s.prRes / 100.   # Resid in cm
 
 if opts.save_pos is not None:
     util.saveObject(opts.save_pos, (sat_el, sat_az, sat_res))
