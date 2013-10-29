@@ -19,6 +19,8 @@ parser.add_option("--reference", help="reference position (lat,lon,alt)", defaul
 
 if opts.reference:
     reference_position = util.ParseLLH(opts.reference)
+else:
+    reference_position = None
 
 # create a figure
 f = pyplot.figure(1)
