@@ -10,7 +10,6 @@ import RTCMv3_decode
 from optparse import OptionParser
 
 parser = OptionParser("dgps_test.py [options]")
-parser.add_option("--port1", help="serial port 1", default='/dev/ttyACM0')
 parser.add_option("--port2", help="serial port 2", default='/dev/ttyACM1')
 parser.add_option("--port3", help="serial port 3", default=None)
 parser.add_option("--baudrate", type='int',
@@ -147,7 +146,7 @@ def handle_device2(msg):
         rx2_pos = util.PosVector(msg.ecefX*0.01, msg.ecefY*0.01, msg.ecefZ*0.01)
 
         print("-----------------")
-        display_diff("REF<->RECV2", reference_position, rx2_pos)
+        display_diff("REF<->RECV2", rx2_pos, reference_position)
         
         if dev3 is not None and rx3_pos is not None:
             display_diff("REF<->RECV3", reference_position, rx3_pos)
@@ -167,9 +166,10 @@ def handle_device3(msg):
         rx3_pos = pos
                                             
 def send_rtcm(msg):
+    print(msg)
     dev2.write(msg)
 
-RTCMv3_decode.run_RTCM_converter(opts.ntrip_server, opts.ntrip_user, opts.ntrip_password, opts.ntrip_mount, rtcm_callback=send_rtcm)
+RTCMv3_decode.run_RTCM_converter(opts.ntrip_server, opts.ntrip_port, opts.ntrip_user, opts.ntrip_password, opts.ntrip_mount, rtcm_callback=send_rtcm)
 
 while True:
     # get a message from the reference GPS
