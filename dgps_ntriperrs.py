@@ -13,16 +13,14 @@ parser = OptionParser("dgps_test.py [options]")
 parser.add_option("--port2", help="serial port 2", default='/dev/ttyACM1')
 parser.add_option("--port3", help="serial port 3", default=None)
 parser.add_option("--baudrate", type='int',
-                  help="serial baud rate", default=115200)
-parser.add_option("--log1", help="log file1", default=None)
+                  help="serial baud rate", default=38400)
 parser.add_option("--log2", help="log file2", default=None)
 parser.add_option("--log3", help="log file3", default=None)
+
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
 parser.add_option("--reference", help="reference position (lat,lon,alt)")
 parser.add_option("--ecef-reference", help="reference position (X,Y,Z)")
-parser.add_option("--usePPP", type='int', default=1, help="usePPP on recv1")
-parser.add_option("--dynmodel1", type='int', default=ublox.DYNAMIC_MODEL_STATIONARY, help="dynamic model for recv1")
 parser.add_option("--dynmodel2", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv2")
 parser.add_option("--dynmodel3", type='int', default=ublox.DYNAMIC_MODEL_AIRBORNE4G, help="dynamic model for recv3")
 parser.add_option("--module-reset", action='store_true', help="cold start all the modules")
@@ -122,12 +120,6 @@ dev2.set_preferred_dynamic_model(opts.dynmodel2)
 if dev3 is not None:
     dev3.set_preferred_dynamic_model(opts.dynmodel3)
 dev2.set_preferred_dgps_timeout(60)
-
-# enable PPP on the ground side if we can
-dev2.set_preferred_usePPP(False)
-if dev3 is not None:
-    dev3.set_preferred_usePPP(False)
-
 
 errlog = open('errlog.txt', mode='w')
 errlog.write("normal DGPS normal-XY DGPS-XY\n")
