@@ -28,22 +28,26 @@ def satPosition_raw(eph, svid, transmitTime):
 
     pi = util.gpsPi
 
-    Crs = eph.crs
-    dn  = eph.deltaN
-    M0  = eph.M0
-    Cuc = eph.cuc
-    ec  = eph.ecc
-    Cus = eph.cus
-    A   = eph.A
-    Toe = eph.toe
-    Cic = eph.cic
-    W0  = eph.omega0
-    Cis = eph.cis
-    i0  = eph.i0
-    Crc = eph.crc
-    w   = eph.omega
-    Wdot = eph.omega_dot
-    idot = eph.idot
+    try:
+        Crs = eph.crs
+        dn  = eph.deltaN
+        M0  = eph.M0
+        Cuc = eph.cuc
+        ec  = eph.ecc
+        Cus = eph.cus
+        A   = eph.A
+        Toe = eph.toe
+        Cic = eph.cic
+        W0  = eph.omega0
+        Cis = eph.cis
+        i0  = eph.i0
+        Crc = eph.crc
+        w   = eph.omega
+        Wdot = eph.omega_dot
+        idot = eph.idot
+    except AttributeError:
+        # The given ephemeride doesn't contain the correct fields
+        return None
 
     T = transmitTime - Toe
     if T > 302400:
