@@ -51,7 +51,7 @@ def plot_line(pos1, pos2, home, colour):
     global last_t
     (x1,y1) = get_xy(pos1, home)
     (x2,y2) = get_xy(pos2, home)
-    pyplot.plot([x1,x2], [y1,y2], colour, linestyle='solid', marker='.')
+    pyplot.plot([x1,x2], [y1,y2], colour, linestyle='solid', marker=None, alpha=0.1)
     t = time.time()
     if t - last_t > 1:
         pyplot.draw()
