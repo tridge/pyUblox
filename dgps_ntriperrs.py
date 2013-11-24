@@ -6,6 +6,7 @@ two receiver DGPS test code
 import ublox, sys, time, struct
 import ephemeris, util
 import RTCMv3_decode
+import nmea_wrapper
 
 from optparse import OptionParser
 
@@ -16,7 +17,8 @@ parser.add_option("--baudrate", type='int',
                   help="serial baud rate", default=38400)
 parser.add_option("--log2", help="log file2", default=None)
 parser.add_option("--log3", help="log file3", default=None)
-
+parser.add_option("--nmea-2", action='store_true', default=False, help='Port 2 is an NMEA receiver')
+parser.add_option("--nmea-3", action='store_true', default=False, help='Port 3 is an NMEA receiver')
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
 parser.add_option("--nortcm", action='store_true', default=False, help="don't send RTCM to receiver2")
 parser.add_option("--reference", help="reference position (lat,lon,alt)")
@@ -59,10 +61,18 @@ def setup_port(port, log, append=False):
     dev.configure_poll_port(ublox.PORT_USB)
     return dev
 
-dev2 = setup_port(opts.port2, opts.log2)
+if opts.nmea_2:
+    dev2 = nmea_wrapper.NMEAModule(opts.port2, opts.baudrate)
+    dev2.set_logfile(opts.log2)
+else:
+    dev2 = setup_port(opts.port2, opts.log2)
 
 if opts.port3 is not None:
-    dev3 = setup_port(opts.port3, opts.log3)
+    if opts.nmea_3:
+        dev3 = nmea_wrapper.NMEAModule(opts.port3, opts.baudrate)
+        dev3.set_logfile(opts.log3)
+    else:
+        dev3 = setup_port(opts.port3, opts.log3)
 else:
     dev3 = None
 
@@ -86,25 +96,32 @@ if opts.module_reset:
 
     time.sleep(1)
 
-    dev2 = setup_port(opts.port2, opts.log2)
+    if opts.nmea_2:
+        dev2 = None
+    else:
+        dev2 = setup_port(opts.port2, opts.log2)
 
     if opts.port3 is not None:
-        dev3 = setup_port(opts.port3, opts.log3)
+        if opts.nmea_3:
+            dev3 = None
+        else:
+            dev3 = setup_port(opts.port3, opts.log3)
     else:
         dev3 = None
 
 
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_DGPS, 1)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELECEF, 0)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELNED, 0)
-dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SOL, 1)
-dev2.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SVSI, 0)
-dev2.configure_solution_rate(rate_ms=1000)
+if not opts.nmea_2:
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_DGPS, 1)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELECEF, 0)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_VELNED, 0)
+    dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SOL, 1)
+    dev2.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SVSI, 0)
+    dev2.configure_solution_rate(rate_ms=1000)
 
-if dev3 is not None:
+if dev3 is not None and not opts.nmea_3:
     dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
     dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
     dev3.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 0)
@@ -116,10 +133,12 @@ if dev3 is not None:
 
 # we want the ground station to use a stationary model, and the roving
 # GPS to use a highly dynamic model
-dev2.set_preferred_dynamic_model(opts.dynmodel2)
-if dev3 is not None:
+if not opts.nmea_2:
+    dev2.set_preferred_dynamic_model(opts.dynmodel2)
+    dev2.set_preferred_dgps_timeout(60)
+
+if dev3 is not None and not opts.nmea_3:
     dev3.set_preferred_dynamic_model(opts.dynmodel3)
-dev2.set_preferred_dgps_timeout(60)
 
 errlog = open('errlog.txt', mode='w')
 errlog.write("normal DGPS normal-XY DGPS-XY\n")
