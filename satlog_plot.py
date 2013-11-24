@@ -78,13 +78,13 @@ if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
             for l in f:
                 a = l.split(',')
                 
-                t = float(a[0])
+                t = float(a[0]) / 1000.
 
                 if t_first == 0:
                     t_first = t
 
                 if t_last != 0 and t - t_last >= 2:
-                    print("Missed Epoch")
+                    print("Missed Epoch {} {}".format(t, t_last))
 
                 if t < t_first and t_wrap == 0:
                     t_wrap = t_last
@@ -160,7 +160,9 @@ dg_err = numpy.array(dg_err[:-1])
 
 plt.figure()
 
-rel_err = moving_average(dg_err - p_err, opts.window)
+dg_filt = moving_average(dg_err, opts.window)
+p_filt = moving_average(p_err, opts.window)
+rel_err = dg_filt - p_filt
 
 if opts.split_by_time is not None:
     nplots = int(math.ceil(len(rel_err) / (opts.split_by_time * 60.0 * 60.0)))
@@ -201,8 +203,8 @@ for i in range(nplots):
 plt.figure()
 plt.suptitle("Corrected/Uncorrected Errors w.r.t. Ground Truth")
 
-ymin = min(0, min(p_err), min(dg_err)) * 1.2
-ymax = max(max(p_err), max(dg_err)) * 1.2
+ymin = min(0, min(p_filt), min(dg_filt)) * 1.2
+ymax = max(max(p_filt), max(dg_filt)) * 1.2
 
 for i in range(nplots):
     ax = plt.subplot(nplots, 1, i + 1)
@@ -214,8 +216,8 @@ for i in range(nplots):
     ax.set_xlim(0, plen)
     ax.set_ylim(ymin, ymax)
 
-    ax.plot(p_err[i * plen: min(len(rel_err), (i+1)*plen)], color='red')
-    ax.plot(dg_err[i * plen: min(len(rel_err), (i+1)*plen)], color='green')
+    ax.plot(p_filt[i * plen: min(len(rel_err), (i+1)*plen)], color='red')
+    ax.plot(dg_filt[i * plen: min(len(rel_err), (i+1)*plen)], color='green')
 
 b_els = []
 b_azs = []
@@ -238,7 +240,7 @@ if opts.plot_clusters >= 0 or opts.plot_skymap >= 0:
                 for q in numpy.split(numpy.arange(len(rel_err)), numpy.where(rel_err < opts.badness_thresh)[0])
                 if len(q) > 1]
 
-    cols = math.floor(math.sqrt(len(clumps)))
+    cols = max(math.floor(math.sqrt(len(clumps))),1)
     rows = math.ceil(len(clumps) / cols)
 
     for plot, clump in enumerate(clumps):
