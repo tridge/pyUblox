@@ -15,10 +15,10 @@ for log in sys.argv[1:]:
     l = []
     with open(log) as f:
         for line in f:
-            meas = [ float(m) if abs(float(m)) < 200 else 0 for m in line.strip().split(',')[1:]] # Cut off the leading timestamp
-            #if any([abs(r) > 100 for r in meas]):
-            #    print line
-            #else:
+            # Some bug means that huge ranges sometimes get through and stuff the scales.
+            # While we search for the bug itself, at least we can stop is messing with the plots
+            meas = [ float(m) if abs(float(m)) < 200 else 0
+                for m in line.strip().split(',')[1:]] # Cut off the leading timestamp
             l.append(meas)
 
         satlogs.append(l)
