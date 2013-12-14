@@ -75,10 +75,7 @@ def positionLeastSquares(satinfo):
     return newpos
 
 
-def positionEstimate(satinfo):
-    '''process raw messages to calculate position
-    '''
-
+def calculatePrCorrections(satinfo):
     raw = satinfo.raw
     satinfo.reset()
 
@@ -139,6 +136,12 @@ def positionEstimate(satinfo):
         satinfo.tropospheric_correction[svid] = tropo_corr
         satinfo.satellite_clock_error[svid] = sat_clock_error
         satinfo.satellite_group_delay[svid] = sat_group_delay
+
+def positionEstimate(satinfo):
+    '''process raw messages to calculate position
+    '''
+
+    calculatePrCorrections(satinfo)
 
     # if we got at least 4 satellites then calculate a position
     if len(satinfo.satpos) < 4:
