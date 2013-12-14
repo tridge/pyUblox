@@ -11,13 +11,15 @@ class rawPseudoRange:
         self.cpMeasured   = {}
         self.quality      = {}
         self.lli	  = {}
+        self.cno          = {}
 
-    def add(self, svid, prMes, cpMes, quality, lli):
+    def add(self, svid, prMes, cpMes, quality, lli, cno):
         '''add a pseudo range for a given svid'''
         self.prMeasured[svid] = prMes
         self.cpMeasured[svid] = cpMes * (util.speedOfLight / 1.57542e9)
         self.quality[svid]    = quality
         self.lli[svid]        = lli # loss of lock indicator, rinex defintion
+        self.cno[svid]        = cno
         
 
 class SatelliteData:
@@ -116,7 +118,8 @@ class SatelliteData:
                          msg.recs[i].prMes,
                          msg.recs[i].cpMes,
                          msg.recs[i].mesQI,
-                         msg.recs[i].lli)
+                         msg.recs[i].lli,
+                         msg.recs[i].cno)
         # step the smoothed pseudo-ranges
         self.smooth.step(self.raw)
 
