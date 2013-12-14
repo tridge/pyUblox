@@ -23,14 +23,20 @@ for log in sys.argv[1:]:
 
         satlogs.append(l)
 
-for sat in range(5):
+for log in satlogs:
+    for i in range(1,len(log)-1):
+        for j in range(len(log[i])):
+            if log[i][j] == 0 and log[i-1][j] != 0:
+                log[i][j] = log[i-1][j]
+
+for sat in range(10):
     sat_dat = []
     for log in satlogs:
         print len(log), len(log[0])
         ranges = [ ep[sat] for ep in log ]
 
         # if any sat has one log with only empty ranges, move to the next sat
-        if not any([r for r in ranges]):
+        if not any(ranges):
             break
 
         sat_dat.append(ranges)
