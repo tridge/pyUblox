@@ -4,6 +4,17 @@ Single point position estimate from raw receiver data
 
 import util, satPosition, rangeCorrection
 
+logfile = 'satlog-klobuchar.txt'
+satlog = None
+def save_satlog(t, errset):
+    global satlog
+    if satlog is None:
+        satlog = open(logfile, 'w')
+
+    eset = [ str(errset.get(s,'0')) for s in range(33) ]
+
+    satlog.write(str(t) + "," + ",".join(eset) + "\n")
+    satlog.flush()
 
 def positionErrorFunction(p, data):
     '''error function for least squares position fit'''
@@ -81,7 +92,7 @@ def positionEstimate(satinfo):
 
     raw = satinfo.raw
     satinfo.reset()
-
+    errset={}
     for svid in raw.prMeasured:
 
         if not satinfo.valid(svid):
@@ -127,7 +138,7 @@ def positionEstimate(satinfo):
 
         # get total range correction
         total_range_correction = ion_corr + tropo_corr
-
+        errset[svid]=-total_range_correction
         # correct the pseudo-range for the clock and atmospheric errors
         prCorrected = prSmooth + (sat_clock_error + sat_group_delay)*util.speedOfLight - total_range_correction
 
@@ -140,6 +151,7 @@ def positionEstimate(satinfo):
         satinfo.satellite_clock_error[svid] = sat_clock_error
         satinfo.satellite_group_delay[svid] = sat_group_delay
 
+    save_satlog(raw.time_of_week, errset)
     # if we got at least 4 satellites then calculate a position
     if len(satinfo.satpos) < 4:
         return None
