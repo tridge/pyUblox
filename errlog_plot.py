@@ -78,7 +78,7 @@ if (sat_el is None or sat_az is None or sat_res is None or t_first is None) \
             for l in f:
                 a = l.split(',')
                 
-                t = float(a[0])
+                t = float(a[0]) / 1000
 
                 if t_first == 0:
                     t_first = t
@@ -245,16 +245,23 @@ if opts.plot_clusters >= 0 or opts.plot_skymap >= 0:
 
         els = []
         azs = []
+	sat = numpy.array([0]*32)
         for i in range(clump[0],clump[1], opts.skip_plot):
             r = [abs(r) > sat_prthres for r in sat_res[i,:].toarray()[0] ]
             e = [math.cos(e * math.pi / 180.) for e in sat_el[i,:].toarray()[0]]
             a = [a * math.pi / 180. for a in sat_az[i,:].toarray()[0]]
 
-            e = map((lambda a,b:a*b), r, e)
+            e = map((lambda a,b:a*b), r, e) # Surely there's a more pythonic way to do this..
             a = map((lambda a,b:a*b), r, a)
+
+            sat = sat + numpy.array(r[:32])
 
             els.append(e)
             azs.append(a)
+
+	sat = 100 * sat / (clump[1] - clump[0])
+
+	print sat
 
         # This hideous lump of bollocks scans through the position arrays and ensures
         # that any zero-entries at the beginning or end are set to the first/last non-
