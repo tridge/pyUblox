@@ -171,7 +171,7 @@ def position_estimate(messages, satinfo):
     
     errset = {}
     for svid in satinfo.rtcm_bits.error_history:
-        errset[svid] = satinfo.rtcm_bits.error_history[svid][:-1]
+        errset[svid] = satinfo.rtcm_bits.error_history[svid][-1]
 
     save_satlog(rxm_raw.iTOW, errset)
 
