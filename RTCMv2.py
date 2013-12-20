@@ -195,6 +195,9 @@ class RTCMBits:
         return self.RTCMType1_step()
 
     def RTCMType1_ext(self, errset, iTOW, week, iode):
+        for svid in self.error_history.copy():
+            if not svid in errset:
+                self.error_history.pop(svid)
         for svid in errset:
             if not svid in self.error_history:
                 self.error_history[svid] = []
