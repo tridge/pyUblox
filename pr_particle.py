@@ -18,8 +18,8 @@ parser.add_option("-f", "--follow", action='store_true', default=False, help="ig
 
 n = 10000
 
-gps_cov = 1000000
-state_cov = 1
+gps_cov = 1000
+state_cov = 10
 
 meas = None
 #--- End Parameters
@@ -76,7 +76,7 @@ def build_filter(info):
     print("RP" + str(est))
     mean = numpy.array([est.X, est.Y, est.Z, est.extra])
 
-    cov = numpy.diag([state_cov, state_cov, state_cov, state_cov / util.speedOfLight])
+    cov = numpy.diag([100 * state_cov, 100 * state_cov, 100 * state_cov, 100 * state_cov / util.speedOfLight])
     init_pdf = pybayes.pdfs.GaussPdf(mean, cov)
 
     p_xt_xtp = pybayes.pdfs.GaussCPdf(4, 4, p_xt_xtp_mu, p_xt_xtp_R)
@@ -102,6 +102,7 @@ def do_filter(info):
     if can_filter:
         #print("M:{}".format(meas))
         filt.bayes(numpy.array(meas))
+    	print(filt.posterior().mean(), filt.posterior().variance())
 
 #---
 while True:
