@@ -18,8 +18,8 @@ parser.add_option("-f", "--follow", action='store_true', default=False, help="ig
 
 n = 10000
 
-gps_cov = 1000
-state_cov = 10
+gps_cov = 1000000
+state_cov = 1
 
 meas = None
 #--- End Parameters
@@ -103,6 +103,7 @@ def do_filter(info):
         #print("M:{}".format(meas))
         filt.bayes(numpy.array(meas))
     	print(filt.posterior().mean(), filt.posterior().variance())
+
 
 #---
 while True:
