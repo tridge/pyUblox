@@ -18,8 +18,8 @@ parser.add_option("-f", "--follow", action='store_true', default=False, help="ig
 
 n = 10000
 
-gps_cov = 1000000
-state_cov = 1
+gps_cov = 1000
+state_cov = 10
 
 meas = None
 #--- End Parameters
