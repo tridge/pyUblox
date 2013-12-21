@@ -129,7 +129,7 @@ if dev3 is not None:
     dev3.set_preferred_usePPP(False)
 
 
-errlog = open('errlog.txt', mode='w')
+errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='w')
 errlog.write("normal DGPS normal-XY DGPS-XY\n")
 
 def display_diff(name, pos1, pos2):

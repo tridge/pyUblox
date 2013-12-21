@@ -50,7 +50,7 @@ rtcm = RTCMv2.RTCMBits()
 rtcm.type1_send_time = 0
 rtcm.type3_send_time = 0
 
-logfile='satlog.txt'
+logfile = time.strftime('satlog-%y%m%d-%H%M.txt')
 
 class DynamicEph:
     pass

@@ -132,7 +132,7 @@ if opts.append:
 else:
     rtcmfile = open('rtcm2.dat', mode='wb')
 
-logfile = 'satlog-local.txt'
+logfile = time.strftime('satlog-local-%y%m%d-%H%M.txt')
 satlog = None
 def save_satlog(t, errset):
     global satlog
@@ -228,9 +228,9 @@ def handle_device1(msg):
         position_estimate(messages, satinfo)
 
 if opts.append:
-    errlog = open('errlog.txt', mode='a')
+    errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='a')
 else:
-    errlog = open('errlog.txt', mode='w')
+    errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='w')
     errlog.write("normal DGPS normal-XY DGPS-XY\n")
 
 def display_diff(name, pos1, pos2):

@@ -4,7 +4,7 @@ Single point position estimate from raw receiver data
 
 import util, satPosition, rangeCorrection
 
-logfile = 'satlog-klobuchar.txt'
+logfile = time.strftime('satlog-klobuchar-%y%m%d-%H%M.txt')
 satlog = None
 def save_satlog(t, errset):
     global satlog
