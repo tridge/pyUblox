@@ -146,7 +146,7 @@ def position_estimate(messages, satinfo):
 
     rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
     if len(rtcm) != 0:
-        print(rtcm)
+        #print(rtcm)
         rtcmfile.write(rtcm)
         port.sendto(rtcm, (opts.udp_addr, opts.udp_port))
 
@@ -161,6 +161,8 @@ def position_estimate(messages, satinfo):
         errset[svid] = satinfo.rtcm_bits.error_history[svid][-1]
 
     save_satlog(rxm_raw.iTOW, errset)
+
+    print(satinfo.receiver_position)
 
     return pos
 
