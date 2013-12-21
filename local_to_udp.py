@@ -3,7 +3,7 @@
 Locally-generated DGPS corrections, publish as UDP datagrams
 '''
 
-import ublox, sys, time, socket
+import ublox, sys, time, socket, struct
 import ephemeris, util, positionEstimate, satelliteData
 import RTCMv2
 
@@ -148,13 +148,13 @@ def position_estimate(messages, satinfo):
     if len(rtcm) != 0:
         print(rtcm)
         rtcmfile.write(rtcm)
-        port.sendto(rtcm, (udp_addr, udp_port))
+        port.sendto(rtcm, (opts.udp_addr, opts.udp_port))
 
     rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
     if len(rtcm) != 0:
         print(rtcm)
         rtcmfile.write(rtcm)
-        port.sendto(rtcm, (udp_addr, udp_port))
+        port.sendto(rtcm, (opts.udp_addr, opts.udp_port))
     
     errset = {}
     for svid in satinfo.rtcm_bits.error_history:
