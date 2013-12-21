@@ -25,10 +25,10 @@ class RTCMBits:
         self.stationID = 2
 
         # how often to send RTCM type 1 messages
-        self.type1_send_time = 5
+        self.type1_send_time = 1
 
         # how often to send RTCM type 3 messages
-        self.type3_send_time = 10
+        self.type3_send_time = 30
 
         self.last_type1_time = 0
         self.last_type3_time = 0
