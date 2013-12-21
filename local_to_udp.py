@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-two receiver DGPS test code
+Locally-generated DGPS corrections, publish as UDP datagrams
 '''
 
 import ublox, sys, time, socket
@@ -9,7 +9,7 @@ import RTCMv2
 
 from optparse import OptionParser
 
-parser = OptionParser("dgps_test.py [options]")
+parser = OptionParser("local_to_udp.py [options]")
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 parser.add_option("--ecef-reference", help="reference position (X,Y,Z)")
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
