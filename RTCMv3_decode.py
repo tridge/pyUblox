@@ -160,6 +160,7 @@ def decode_1004(pkt):
     if len(quals) > max_sats:
         print("Drop {} sats for encode".format(len(quals) - max_sats))
         quals = quals[:max_sats]
+    print(nsat, len(quals), quals)
 
     # Copy the kept sats in to the correction set 
     corr_set = {}
