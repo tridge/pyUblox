@@ -10,6 +10,10 @@ import RTCMv2
 from optparse import OptionParser
 
 parser = OptionParser("local_to_udp.py [options]")
+parser.add_option("--port", help="serial port", default='/dev/ttyACM0')
+parser.add_option("--baudrate", type='int',
+                  help="serial baud rate", default=115200)
+parser.add_option("--log", help="log file", default=None)
 parser.add_option("--reference", help="reference position (lat,lon,alt)", default=None)
 parser.add_option("--ecef-reference", help="reference position (X,Y,Z)")
 parser.add_option("--reopen", action='store_true', default=False, help='re-open on failure')
@@ -45,7 +49,7 @@ def setup_port(port, log, append=False):
     dev.configure_poll_port(ublox.PORT_USB)
     return dev
 
-dev1 = setup_port(opts.port1, opts.log1, append=opts.append)
+dev1 = setup_port(opts.port, opts.log, append=opts.append)
 
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSECEF, 1)
