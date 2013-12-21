@@ -59,7 +59,7 @@ for log in satlogs:
             if log[i][j] == 0 and log[i-1][j] != 0:
                 log[i][j] = log[i-1][j]
 
-for sat in range(30):
+for sat in range(32):
     sat_dat = []
     #print('---' + str(sat) + '---')
     for log, avg in zip(satlogs, avgs):
