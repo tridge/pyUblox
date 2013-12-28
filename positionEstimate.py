@@ -2,6 +2,7 @@
 Single point position estimate from raw receiver data
 '''
 
+import time
 import util, satPosition, rangeCorrection
 
 logfile = time.strftime('satlog-klobuchar-%y%m%d-%H%M.txt')
