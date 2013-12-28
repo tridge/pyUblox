@@ -90,7 +90,7 @@ dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
-dev1.configure_solution_rate(rate_ms=1000)
+dev1.configure_solution_rate(rate_ms=200)
 
 
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)

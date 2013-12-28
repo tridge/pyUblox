@@ -57,7 +57,7 @@ dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
-dev1.configure_solution_rate(rate_ms=1000)
+dev1.configure_solution_rate(rate_ms=200)
 
 # we want the ground station to use a stationary model, and the roving
 # GPS to use a highly dynamic model
@@ -169,9 +169,12 @@ pos_count = 0
 while True:
     # get a message from the reference GPS
     msg = dev1.receive_message_noerror()
-    if msg is not None:
-        handle_device1(msg)
-        last_msg1_time = time.time()
+    if msg is None:
+        break
+
+    #if msg is not None:
+    handle_device1(msg)
+    last_msg1_time = time.time()
 
     if opts.reopen and time.time() > last_msg1_time + 5:
         dev1.close()
