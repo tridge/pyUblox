@@ -10,7 +10,7 @@ rtklib.
 '''
 
 
-import sys
+import sys, time
 import bitstring as bs
 import satPosition, util, RTCMv2
 
@@ -190,7 +190,8 @@ def decode_1006(pkt):
     anth = pkt.read(16).uint * 0.0001
  
     ref_pos = [ref_x, ref_y, ref_z]
-
+    print(ref_pos)
+    print(util.PosVector(*ref_pos).ToLLH())
 
 def decode_1033(pkt):
     # Don't really care about any of this stuff at this stage..
