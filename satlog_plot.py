@@ -9,9 +9,27 @@ from optparse import OptionParser
 
 import util, ublox
 
+parser = OptionParser("satlog_plot.py [options]")
+parser.add_option("--avg", help="Average samples, comma-separated list for multiple satlogs")
+
+(opts, args) = parser.parse_args()
+
+if opts.avg is not None:
+    avgs = [int(a) for a in opts.avg.split(',')]
+    avgs = avgs + [1] * (len(args) - len(avgs))
+else:
+    avgs = [1] * len(args)
+
 satlogs = []
 
-for log in sys.argv[1:]:
+def moving_average(a, n):
+    if n == 1:
+        return a
+
+    r = numpy.cumsum(a, dtype=float)
+    return ((r[n-1:] - r[:1-n]) / n).tolist()
+
+for log, avg in zip(args, avgs):
     l = []
     with open(log) as f:
         for line in f:
@@ -21,7 +39,7 @@ for log in sys.argv[1:]:
                 for m in line.strip().split(',')[1:]] # Cut off the leading timestamp
             l.append(meas)
 
-        satlogs.append(l)
+    satlogs.append(l)
 
 for log in satlogs:
     for i in range(1,len(log)-1):
@@ -29,20 +47,25 @@ for log in satlogs:
             if log[i][j] == 0 and log[i-1][j] != 0:
                 log[i][j] = log[i-1][j]
 
-for sat in range(10):
+for sat in range(30):
     sat_dat = []
-    for log in satlogs:
-        print len(log), len(log[0])
+    print('---' + str(sat) + '---')
+    for log, avg in zip(satlogs, avgs):
         ranges = [ ep[sat] for ep in log ]
 
+        ranges = moving_average(ranges, avg)
+        ranges = [0] * (avg // 2) + ranges + [0] * (avg // 2)
+
         # if any sat has one log with only empty ranges, move to the next sat
-        if not any(ranges):
-            break
+        #if not any(ranges):
+        #    break
 
         sat_dat.append(ranges)
+
+        print(numpy.average(ranges), numpy.std(ranges))
     else:
-        plt.figure()
+        ax = plt.subplot(5, 6, sat)
         for log in sat_dat:
-            plt.plot(log)
+            ax.plot(log)
 
 plt.show()
