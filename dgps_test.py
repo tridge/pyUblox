@@ -90,7 +90,7 @@ dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_RAW, 1)
 dev1.configure_message_rate(ublox.CLASS_RXM, ublox.MSG_RXM_SFRB, 1)
 dev1.configure_message_rate(ublox.CLASS_AID, ublox.MSG_AID_EPH, 1)
 dev1.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_SVINFO, 1)
-dev1.configure_solution_rate(rate_ms=1000)
+dev1.configure_solution_rate(rate_ms=200)
 
 
 dev2.configure_message_rate(ublox.CLASS_NAV, ublox.MSG_NAV_POSLLH, 1)
@@ -132,7 +132,7 @@ if opts.append:
 else:
     rtcmfile = open('rtcm2.dat', mode='wb')
 
-logfile = 'satlog-local.txt'
+logfile = time.strftime('satlog-local-%y%m%d-%H%M.txt')
 satlog = None
 def save_satlog(t, errset):
     global satlog
@@ -228,9 +228,9 @@ def handle_device1(msg):
         position_estimate(messages, satinfo)
 
 if opts.append:
-    errlog = open('errlog.txt', mode='a')
+    errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='a')
 else:
-    errlog = open('errlog.txt', mode='w')
+    errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='w')
     errlog.write("normal DGPS normal-XY DGPS-XY\n")
 
 def display_diff(name, pos1, pos2):

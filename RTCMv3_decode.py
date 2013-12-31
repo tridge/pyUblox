@@ -10,11 +10,13 @@ rtklib.
 '''
 
 
-import sys
+import sys, time
 import bitstring as bs
 import satPosition, util, RTCMv2
 
 from bitstring import BitStream
+
+max_sats = 12
 
 RTCMv3_PREAMBLE = 0xD3
 PRUNIT_GPS = 299792.458
@@ -48,7 +50,7 @@ rtcm = RTCMv2.RTCMBits()
 rtcm.type1_send_time = 0
 rtcm.type3_send_time = 0
 
-logfile='satlog.txt'
+logfile = time.strftime('satlog-%y%m%d-%H%M.txt')
 
 class DynamicEph:
     pass
@@ -113,10 +115,11 @@ def decode_1004(pkt):
     smint = pkt.read(3).uint
 
     prs = {}
+    temp_corrs = {}
 
     for n in range(nsat):
         svid = pkt.read(6).uint
-        corr_set[svid] = {}
+        temp_corrs[svid] = {}
 
         code1 = pkt.read(1).uint
         pr1 = pkt.read(24).uint
@@ -133,27 +136,37 @@ def decode_1004(pkt):
         pr1 = pr1 * 0.02 + amb * PRUNIT_GPS
 
         if ppr1 != 0x80000:
-            corr_set[svid]['P1'] = pr1
+            temp_corrs[svid]['P1'] = pr1
             cp1 = adjcp(svid, 0, ppr1 * 0.0005 / lam_carr[0])
-            corr_set[svid]['L1'] = pr1 / lam_carr[0] + cp1
+            temp_corrs[svid]['L1'] = pr1 / lam_carr[0] + cp1
 
-        corr_set[svid]['LLI1'] = lossoflock(svid, 0, lock1)
-        corr_set[svid]['SNR1'] = snratio(cnr1 * 0.25)
-        corr_set[svid]['CODE1'] = 'CODE_P1' if code1 else 'CODE_C1'
+        temp_corrs[svid]['LLI1'] = lossoflock(svid, 0, lock1)
+        temp_corrs[svid]['SNR1'] = snratio(cnr1 * 0.25)
+        temp_corrs[svid]['CODE1'] = 'CODE_P1' if code1 else 'CODE_C1'
         
         if pr21 != 0xE000:
-            corr_set[svid]['P2'] = pr1 + pr21 * 0.02
+            temp_corrs[svid]['P2'] = pr1 + pr21 * 0.02
 
         if ppr2 != 0x80000:
             cp2 = adjcp(svid, 1, ppr2 * 0.0005 / lam_carr[1])
-            corr_set[svid]['L2'] = pr1 / lam_carr[1] + cp2
+            temp_corrs[svid]['L2'] = pr1 / lam_carr[1] + cp2
 
-        corr_set[svid]['LLI2'] = lossoflock(svid, 1, lock2)
-        corr_set[svid]['SNR2'] = snratio(cnr2 * 0.25)
-        corr_set[svid]['CODE2'] = L2codes[code2]
+        temp_corrs[svid]['LLI2'] = lossoflock(svid, 1, lock2)
+        temp_corrs[svid]['SNR2'] = snratio(cnr2 * 0.25)
+        temp_corrs[svid]['CODE2'] = L2codes[code2]
+    
+    # Sort the list of sats by SNR, trim to 10 sats
+    quals = sorted([ (s, temp_corrs[s]['SNR1']) for s in temp_corrs], key=lambda x: x[1])
+    if len(quals) > max_sats:
+        print("Drop {} sats for encode".format(len(quals) - max_sats))
+        quals = quals[:max_sats]
 
-        prs[svid] = corr_set[svid]['P1']
-        
+    # Copy the kept sats in to the correction set 
+    corr_set = {}
+    for sv, snr in quals:
+        corr_set[sv] = temp_corrs[sv]
+        prs[sv] = temp_corrs[sv]['P1']
+
     itow = tow
 
 
@@ -177,7 +190,8 @@ def decode_1006(pkt):
     anth = pkt.read(16).uint * 0.0001
  
     ref_pos = [ref_x, ref_y, ref_z]
-
+    print(ref_pos)
+    print(util.PosVector(*ref_pos).ToLLH())
 
 def decode_1033(pkt):
     # Don't really care about any of this stuff at this stage..
@@ -350,15 +364,15 @@ def parse_rtcmv3(pkt):
 def RTCM_converter_thread(server, port, username, password, mountpoint, rtcm_callback = None):
     import subprocess
 
-    """nt = subprocess.Popen(["./ntripclient",
+    nt = subprocess.Popen(["./ntripclient",
                             "--server", server,
                             "--password", password,
                             "--user", username,
                             "--mountpoint", mountpoint ],
-                            stdout=subprocess.PIPE)"""
-
-    nt = subprocess.Popen(["./ntrip.py", server, str(port), username, password, mountpoint],
                             stdout=subprocess.PIPE)
+
+    """nt = subprocess.Popen(["./ntrip.py", server, str(port), username, password, mountpoint],
+                            stdout=subprocess.PIPE)"""
 
 
     if nt is None or nt.stdout is None:

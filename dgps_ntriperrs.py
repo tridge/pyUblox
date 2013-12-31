@@ -140,7 +140,7 @@ if not opts.nmea_2:
 if dev3 is not None and not opts.nmea_3:
     dev3.set_preferred_dynamic_model(opts.dynmodel3)
 
-errlog = open('errlog.txt', mode='w')
+errlog = open(time.strftime('errlog-%y%m%d-%H%M.txt'), mode='w')
 errlog.write("normal DGPS normal-XY DGPS-XY\n")
 
 def display_diff(name, pos1, pos2):
