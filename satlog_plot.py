@@ -29,6 +29,18 @@ def moving_average(a, n):
     r = numpy.cumsum(a, dtype=float)
     return ((r[n-1:] - r[:1-n]) / n).tolist()
 
+def trimmed_average(a, n):
+    out = []
+    if n == 1:
+        return a
+
+    for i in range(len(a) - n):
+        window = a[i:i+n]
+        t = sorted(window)[n // 4: 3 * n // 4]
+        out.append(sum(t) / len(t))
+
+    return out
+
 for log, avg in zip(args, avgs):
     l = []
     with open(log) as f:
@@ -49,11 +61,12 @@ for log in satlogs:
 
 for sat in range(30):
     sat_dat = []
-    print('---' + str(sat) + '---')
+    #print('---' + str(sat) + '---')
     for log, avg in zip(satlogs, avgs):
         ranges = [ ep[sat] for ep in log ]
 
-        ranges = moving_average(ranges, avg)
+        #ranges = moving_average(ranges, avg)
+        ranges = trimmed_average(ranges, avg)
         ranges = [0] * (avg // 2) + ranges + [0] * (avg // 2)
 
         # if any sat has one log with only empty ranges, move to the next sat
@@ -62,7 +75,7 @@ for sat in range(30):
 
         sat_dat.append(ranges)
 
-        print(numpy.average(ranges), numpy.std(ranges))
+        #print(numpy.average(ranges), numpy.std(ranges))
     else:
         ax = plt.subplot(5, 6, sat)
         for log in sat_dat:
