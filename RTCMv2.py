@@ -221,7 +221,15 @@ class RTCMBits:
         errors = {}
         rates = {}
         for svid in self.error_history:
-            errors[svid] = sum(self.error_history[svid])/float(len(self.error_history[svid]))
+            #errors[svid] = sum(self.error_history[svid])/float(len(self.error_history[svid]))
+
+            l = len(self.error_history[svid])
+            # Extract the median half of the error array and take the average over that.  This
+            # will reject outliers that we see pretty often, though most of those outliers only
+            # last for 1 or 2 samples at a time so we might want to broaden this window.
+            trim = sorted(self.error_history[svid])[l // 4: 3 * l // 4]
+            errors[svid] = sum(trim) / float(len(trim))
+
             if svid in self.last_errors and deltat > 0:
                 rates[svid] = (errors[svid] - self.last_errors[svid]) / deltat
             else:
