@@ -172,7 +172,7 @@ class RTCMBits:
         return 3 # > 8m
 
 
-    def RTCMType1(self, satinfo):
+    def RTCMType1(self, satinfo, maxsats=32):
         '''create a RTCM type 1 message'''
 
         for svid in satinfo.prSmoothed:
@@ -188,9 +188,12 @@ class RTCMBits:
         self.time_of_week = satinfo.raw.time_of_week
         self.gps_week = satinfo.raw.gps_week
 
+        svids = sorted([ (s, satinfo.elevation[s]) for s in satinfo.ephemeris.keys()], key=lambda x: x[1])
+        svids = svids[-maxsats:]
         self.iode = {}
-        for svid in satinfo.ephemeris:
+        for svid,elevation in svids:
             self.iode[svid] = satinfo.ephemeris[svid].iode
+        print(self.iode)
 
         return self.RTCMType1_step()
 
@@ -319,7 +322,7 @@ class RTCMBits:
 
         while self.rtcbits != 0:
             self.addbits(8, 0xAA) # pad unused bits with 0xAA
-        #print("MSG: bitlength=%u wordlength=%u len=%u" % (bitlength, wordlength, len(self.buf)))
+        print("MSG: bitlength=%u wordlength=%u len=%u" % (bitlength, wordlength, len(self.buf)))
         return self.buf + "\r\n"
 
 
@@ -392,13 +395,13 @@ class RTCMBits:
         return self.buf + "\n\r"
 
 
-def generateRTCM2_Message1(satinfo):
+def generateRTCM2_Message1(satinfo, maxsats=32):
     '''generate RTCMv2 corrections from satinfo'''
     bits = satinfo.rtcm_bits
     if bits is None:
         bits = RTCMBits()
         satinfo.rtcm_bits = bits
-    msg = bits.RTCMType1(satinfo)
+    msg = bits.RTCMType1(satinfo, maxsats=maxsats)
     return msg
 
 def generateRTCM2_Message3(satinfo):

@@ -144,17 +144,17 @@ def position_estimate(messages, satinfo):
         # not enough information for a fix
         return
 
-    rtcm = RTCMv2.generateRTCM2_Message1(satinfo)
+    rtcm = RTCMv2.generateRTCM2_Message1(satinfo, maxsats=10)
     if len(rtcm) != 0:
         #print(rtcm)
         rtcmfile.write(rtcm)
-        port.sendto(rtcm, (opts.udp_addr, opts.udp_port))
+        port.sendto(rtcm[:-2], (opts.udp_addr, opts.udp_port))
 
     rtcm = RTCMv2.generateRTCM2_Message3(satinfo)
     if len(rtcm) != 0:
         print(rtcm)
         rtcmfile.write(rtcm)
-        port.sendto(rtcm, (opts.udp_addr, opts.udp_port))
+        port.sendto(rtcm[:-2], (opts.udp_addr, opts.udp_port))
     
     errset = {}
     for svid in satinfo.rtcm_bits.error_history:

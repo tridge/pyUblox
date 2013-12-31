@@ -728,12 +728,13 @@ class UBlox:
 
     def send_nmea(self, msg):
         if not self.read_only:
-            self.write(msg + "*%02X" % self.nmea_checksum(msg))
+            s = msg + "*%02X" % self.nmea_checksum(msg)
+            self.write(s)
 
     def set_binary(self):
 	'''put a UBlox into binary mode using a NMEA string'''
         if not self.read_only:
-            self.send_nmea("$PUBX,41,1,0001,0001,%u,0" % self.baudrate)
+            self.send_nmea("$PUBX,41,1,0007,0001,%u,0" % self.baudrate)
 
     def seek_percent(self, pct):
 	'''seek to the given percentage of a file'''
