@@ -19,7 +19,7 @@ class RTCMBits:
         # history_length values. If ==0 then average over samples between
         # RTCM points
         #self.history_length = 10
-        self.history_length = 0
+        self.history_length = 120
 
         self.last_time_of_week = 0
         self.stationID = 2
