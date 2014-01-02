@@ -179,6 +179,7 @@ class RTCMBits:
             prAdjusted = satinfo.prSmoothed[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
             #prAdjusted -= satinfo.tropospheric_correction[svid]
             #prAdjusted -= satinfo.ionospheric_correction[svid]
+            print (satinfo.receiver_clock_error + satinfo.satellite_clock_error) * util.speedOfLight
 
             err = satinfo.geometricRange[svid] - prAdjusted
             if not svid in self.error_history:

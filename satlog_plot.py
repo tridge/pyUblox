@@ -11,6 +11,7 @@ import util, ublox
 
 parser = OptionParser("satlog_plot.py [options]")
 parser.add_option("--avg", help="Average samples, comma-separated list for multiple satlogs")
+parser.add_option("--scale", help="Horizontal scale (rate) factors, comma-separated list for multiple satlogs")
 
 (opts, args) = parser.parse_args()
 
@@ -19,6 +20,12 @@ if opts.avg is not None:
     avgs = avgs + [1] * (len(args) - len(avgs))
 else:
     avgs = [1] * len(args)
+
+if opts.scale is not None:
+    scales = [int(a) for a in opts.scale.split(',')]
+    scales = scales + [1] * (len(args) - len(scales))
+else:
+    scales = [1] * len(args)
 
 satlogs = []
 
@@ -59,11 +66,14 @@ for log in satlogs:
             if log[i][j] == 0 and log[i-1][j] != 0:
                 log[i][j] = log[i-1][j]
 
-for sat in range(32):
+for sat in range(30):
     sat_dat = []
     #print('---' + str(sat) + '---')
-    for log, avg in zip(satlogs, avgs):
-        ranges = [ ep[sat] for ep in log ]
+    for log, avg, scale in zip(satlogs, avgs, scales):
+        ranges = []
+        for r in [ ep[sat] for ep in log ]:
+            ranges += [r] * scale
+
 
         #ranges = moving_average(ranges, avg)
         ranges = trimmed_average(ranges, avg)
