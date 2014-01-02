@@ -67,46 +67,6 @@ def save_satlog(t, errset):
     satlog.flush()
 
 
-def positionErrorFunction(p, data):
-    '''error function for least squares position fit'''
-    pos = util.PosVector(p[0], p[1], p[2])
-    recv_clockerr = p[3]
-    ret = []
-    for d in data:
-        satpos, prange, weight = d
-        dist = pos.distance(satpos)
-        ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
-    return ret
-
-def positionLeastSquares_ranges(eph, pranges, lastpos, last_clock_error, weights=None):
-    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
-    The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
-    A weight of 1 means it has more influence on the solution
-    '''
-    import scipy
-    from scipy import optimize
-    data = []
-
-    for svid in pranges:
-        if svid in eph:
-            if weights is not None:
-                weight = weights[svid]
-            else:
-                weight = 1.0
-
-            transmitTime = itow - tof
-            satpos = satPosition.satPosition_raw(eph[svid], svid, transmitTime)
-
-            data.append((satpos, pranges[svid], weight))
-    p0 = [lastpos.X, lastpos.Y, lastpos.Z, last_clock_error]
-    p1, ier = optimize.leastsq(positionErrorFunction, p0[:], args=(data))
-    if not ier in [1, 2, 3, 4]:
-        raise RuntimeError("Unable to find solution")
-
-    # print position and clock error
-    print (p1[0], p1[1], p1[2], p1[3] * util.speedOfLight)
-
-
 cp_hist = {}
 def adjcp(sat, freq, cp):
     '''Adjust carrier phase for rollover'''
@@ -209,8 +169,6 @@ def decode_1004(pkt):
         prs[sv] = temp_corrs[sv]['P1']
 
     itow = tow
-
-    positionLeastSquares_ranges(eph, prs, ref_pos, 0)
 
 def decode_1006(pkt):
     global ref_pos
@@ -332,12 +290,56 @@ def decode_1019(pkt):
     eph[svid].af2 = af2         * pow(2, -55)
 
 
+def positionErrorFunction(p, data):
+    '''error function for least squares position fit'''
+    pos = util.PosVector(*ref_pos)
+    recv_clockerr = p[0]
+    ret = []
+    for d in data:
+        satpos, prange, weight = d
+        dist = pos.distance(satpos)
+        ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
+    return ret
+
+def positionLeastSquares_ranges(eph, pranges, lastpos, last_clock_error, weights=None):
+    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
+    The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
+    A weight of 1 means it has more influence on the solution
+    '''
+    import scipy
+    from scipy import optimize
+    data = []
+
+    for svid in pranges:
+        if svid in eph:
+            if weights is not None:
+                weight = weights[svid]
+            else:
+                weight = 1.0
+
+            tof = pranges[svid] / util.speedOfLight
+            transmitTime = itow - tof
+            satpos = satPosition.satPosition_raw(eph[svid], svid, transmitTime)
+
+            data.append((satpos, pranges[svid], weight))
+
+    if len(data) < 4:
+        return
+
+    p1, ier = optimize.leastsq(positionErrorFunction, [last_clock_error], args=(data))
+    if not ier in [1, 2, 3, 4]:
+        raise RuntimeError("Unable to find solution")
+
+    print('---')
+    print (p1 * util.speedOfLight)
+
 def regen_v2_type1():
 
     if ref_pos is None:
         return
 
     errset = {}
+    pranges = {}
     for svid in prs:
 
         if svid not in eph:
@@ -366,8 +368,11 @@ def regen_v2_type1():
         prAdjusted = prs[svid] + dTclck * util.speedOfLight
 
         errset[svid] = geo - prAdjusted
+        pranges[svid] = prAdjusted
 
     save_satlog(itow, errset)
+
+    positionLeastSquares_ranges(eph, pranges, ref_pos, 0)
 
     iode = {}
     for svid in eph:
