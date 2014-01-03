@@ -132,10 +132,10 @@ def positionLeastSquares(satinfo):
     if satinfo.reference_position is not None:
         # Estimate rx clk error again if we have position
         # we still do the above as we use lastpos etc for statistic generation
-        clk_err = clockLeastSquares_ranges(satinfo.eph,
+        clk_err = clockLeastSquares_ranges(satinfo.ephemeris,
                                            satinfo.prCorrected,
-                                           satinfo.raw.itow,
-                                           ref_pos,
+                                           satinfo.raw.time_of_week,
+                                           (satinfo.reference_position.X, satinfo.reference_position.Y, satinfo.reference_position.Z),
                                            0,
                                            weights)
 
