@@ -46,6 +46,8 @@ itow = 0
 
 ref_pos = None
 
+correct_rxclk = True
+
 rtcm = RTCMv2.RTCMBits()
 rtcm.type1_send_time = 0
 rtcm.type3_send_time = 0
@@ -290,7 +292,7 @@ def decode_1019(pkt):
     eph[svid].af2 = af2         * pow(2, -55)
 
 
-def positionErrorFunction(p, data):
+def clockErrorFunction(p, data):
     '''error function for least squares position fit'''
     pos = util.PosVector(*ref_pos)
     recv_clockerr = p[0]
@@ -301,7 +303,7 @@ def positionErrorFunction(p, data):
         ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
     return ret
 
-def positionLeastSquares_ranges(eph, pranges, lastpos, last_clock_error, weights=None):
+def clockLeastSquares_ranges(eph, pranges, last_clock_error, weights=None):
     '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
     The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
     A weight of 1 means it has more influence on the solution
@@ -326,12 +328,11 @@ def positionLeastSquares_ranges(eph, pranges, lastpos, last_clock_error, weights
     if len(data) < 4:
         return
 
-    p1, ier = optimize.leastsq(positionErrorFunction, [last_clock_error], args=(data))
+    p1, ier = optimize.leastsq(clockErrorFunction, [last_clock_error], args=(data))
     if not ier in [1, 2, 3, 4]:
         raise RuntimeError("Unable to find solution")
 
-    print('---')
-    print (p1 * util.speedOfLight)
+    return p1
 
 def regen_v2_type1():
 
@@ -372,7 +373,20 @@ def regen_v2_type1():
 
     save_satlog(itow, errset)
 
-    positionLeastSquares_ranges(eph, pranges, ref_pos, 0)
+    if correct_rxclk:
+        rxerr = clockLeastSquares_ranges(eph, pranges, 0)
+        if rxerr is None:
+            return
+
+        rxerr = rxerr[0] * util.speedOfLight
+
+        for svid in errset:
+            errset[svid] += rxerr
+            pranges[svid] += rxerr
+
+        rxerr = clockLeastSquares_ranges(eph, pranges, 0)[0] * util.speedOfLight
+
+        print("Residual RX clock error {}".format(rxerr))
 
     iode = {}
     for svid in eph:
@@ -461,8 +475,11 @@ def RTCM_converter_thread(server, port, username, password, mountpoint, rtcm_cal
             if msg is not None and rtcm_callback is not None:
                 rtcm_callback(msg)
 
-def run_RTCM_converter(server, port, user, passwd, mount, rtcm_callback=None):
+def run_RTCM_converter(server, port, user, passwd, mount, rtcm_callback=None, force_rxclk_correction=True):
+    global correct_rxclk
     import threading
+
+    correct_rxclk = force_rxclk_correction
 
     t = threading.Thread(target=RTCM_converter_thread, args=(server, port, user, passwd, mount, rtcm_callback,))
     t.start()
