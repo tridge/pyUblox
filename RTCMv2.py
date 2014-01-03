@@ -179,7 +179,6 @@ class RTCMBits:
             prAdjusted = satinfo.prSmoothed[svid] + satinfo.receiver_clock_error*util.speedOfLight + satinfo.satellite_clock_error[svid]*util.speedOfLight
             #prAdjusted -= satinfo.tropospheric_correction[svid]
             #prAdjusted -= satinfo.ionospheric_correction[svid]
-            print (satinfo.receiver_clock_error + satinfo.satellite_clock_error) * util.speedOfLight
 
             err = satinfo.geometricRange[svid] - prAdjusted
             if not svid in self.error_history:
@@ -189,12 +188,13 @@ class RTCMBits:
         self.time_of_week = satinfo.raw.time_of_week
         self.gps_week = satinfo.raw.gps_week
 
-        svids = sorted([ (s, satinfo.elevation[s]) for s in satinfo.ephemeris.keys()], key=lambda x: x[1])
+        svids = sorted([ (s, satinfo.elevation[s]) for s in satinfo.elevation], key=lambda x: x[1])
         svids = svids[-maxsats:]
         self.iode = {}
         for svid,elevation in svids:
             self.iode[svid] = satinfo.ephemeris[svid].iode
-        print(self.iode)
+
+        print("RTCM Type 1, {} sats".format(len(svids)))
 
         return self.RTCMType1_step()
 
