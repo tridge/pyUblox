@@ -249,7 +249,7 @@ class RTCMBits:
         msgudre      = []
         scalefactors = []
         for svid in self.error_history:
-            if not svid in self.iode:
+            if not svid in self.iode or not svid in errors:
                 continue
 
             prc  = int(round(errors[svid]/0.02))
