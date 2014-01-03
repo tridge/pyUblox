@@ -52,6 +52,48 @@ def positionLeastSquares_ranges(satinfo, pranges, lastpos, last_clock_error, wei
     # return position and clock error
     return util.PosVector(p1[0], p1[1], p1[2], extra=p1[3])
 
+def clockErrorFunction(p, data):
+    '''error function for least squares position fit'''
+    pos = util.PosVector(*data[0])
+    recv_clockerr = p[0]
+    ret = []
+    for d in data[1:]:
+        satpos, prange, weight = d
+        dist = pos.distance(satpos)
+        ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
+    return ret
+
+def clockLeastSquares_ranges(eph, pranges, itow, ref_pos, last_clock_error, weights=None):
+    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
+    The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
+    A weight of 1 means it has more influence on the solution
+    '''
+    import scipy
+    from scipy import optimize
+    data = [ref_pos]
+
+    for svid in pranges:
+        if svid in eph:
+            if weights is not None:
+                weight = weights[svid]
+            else:
+                weight = 1.0
+
+            tof = pranges[svid] / util.speedOfLight
+            transmitTime = itow - tof
+            satpos = satPosition.satPosition_raw(eph[svid], svid, transmitTime)
+
+            data.append((satpos, pranges[svid], weight))
+
+    if len(data) < 4:
+        return
+
+    p1, ier = optimize.leastsq(clockErrorFunction, [last_clock_error], args=(data))
+    if not ier in [1, 2, 3, 4]:
+        raise RuntimeError("Unable to find solution")
+
+    return p1
+
 def satelliteWeightings(satinfo):
     '''return a dictionary of weightings for the contribution to the least squares
        for each satellite'''

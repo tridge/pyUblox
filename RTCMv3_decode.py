@@ -12,7 +12,7 @@ rtklib.
 
 import sys, time
 import bitstring as bs
-import satPosition, util, RTCMv2
+import satPosition, util, RTCMv2, positionEstimate
 
 from bitstring import BitStream
 
@@ -292,48 +292,6 @@ def decode_1019(pkt):
     eph[svid].af2 = af2         * pow(2, -55)
 
 
-def clockErrorFunction(p, data):
-    '''error function for least squares position fit'''
-    pos = util.PosVector(*ref_pos)
-    recv_clockerr = p[0]
-    ret = []
-    for d in data:
-        satpos, prange, weight = d
-        dist = pos.distance(satpos)
-        ret.append((dist - (prange + util.speedOfLight*recv_clockerr))*weight)
-    return ret
-
-def clockLeastSquares_ranges(eph, pranges, last_clock_error, weights=None):
-    '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges
-    The weights dictionary is optional. If supplied, it is the weighting from 0 to 1 for each satellite.
-    A weight of 1 means it has more influence on the solution
-    '''
-    import scipy
-    from scipy import optimize
-    data = []
-
-    for svid in pranges:
-        if svid in eph:
-            if weights is not None:
-                weight = weights[svid]
-            else:
-                weight = 1.0
-
-            tof = pranges[svid] / util.speedOfLight
-            transmitTime = itow - tof
-            satpos = satPosition.satPosition_raw(eph[svid], svid, transmitTime)
-
-            data.append((satpos, pranges[svid], weight))
-
-    if len(data) < 4:
-        return
-
-    p1, ier = optimize.leastsq(clockErrorFunction, [last_clock_error], args=(data))
-    if not ier in [1, 2, 3, 4]:
-        raise RuntimeError("Unable to find solution")
-
-    return p1
-
 def regen_v2_type1():
 
     if ref_pos is None:
@@ -374,7 +332,7 @@ def regen_v2_type1():
     save_satlog(itow, errset)
 
     if correct_rxclk:
-        rxerr = clockLeastSquares_ranges(eph, pranges, 0)
+        rxerr = positionEstimate.clockLeastSquares_ranges(eph, pranges, itow, ref_pos, 0)
         if rxerr is None:
             return
 
@@ -384,7 +342,7 @@ def regen_v2_type1():
             errset[svid] += rxerr
             pranges[svid] += rxerr
 
-        rxerr = clockLeastSquares_ranges(eph, pranges, 0)[0] * util.speedOfLight
+        rxerr = positionEstimate.clockLeastSquares_ranges(eph, pranges, itow, ref_pos, 0)[0] * util.speedOfLight
 
         print("Residual RX clock error {}".format(rxerr))
 
