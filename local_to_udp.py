@@ -172,7 +172,8 @@ while True:
     # get a message from the reference GPS
     msg = dev1.receive_message_noerror()
     if msg is None:
-        break
+        time.sleep(0.1)
+        continue
 
     #if msg is not None:
     handle_device1(msg)
