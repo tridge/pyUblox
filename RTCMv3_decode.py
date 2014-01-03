@@ -336,13 +336,13 @@ def regen_v2_type1():
         if rxerr is None:
             return
 
-        rxerr = rxerr[0] * util.speedOfLight
+        rxerr *= util.speedOfLight
 
         for svid in errset:
             errset[svid] += rxerr
             pranges[svid] += rxerr
 
-        rxerr = positionEstimate.clockLeastSquares_ranges(eph, pranges, itow, ref_pos, 0)[0] * util.speedOfLight
+        rxerr = positionEstimate.clockLeastSquares_ranges(eph, pranges, itow, ref_pos, 0) * util.speedOfLight
 
         print("Residual RX clock error {}".format(rxerr))
 

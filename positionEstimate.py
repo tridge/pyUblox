@@ -92,7 +92,7 @@ def clockLeastSquares_ranges(eph, pranges, itow, ref_pos, last_clock_error, weig
     if not ier in [1, 2, 3, 4]:
         raise RuntimeError("Unable to find solution")
 
-    return p1
+    return p1[0]
 
 def satelliteWeightings(satinfo):
     '''return a dictionary of weightings for the contribution to the least squares
@@ -119,6 +119,8 @@ def positionLeastSquares(satinfo):
     '''estimate ECEF position of receiver via least squares fit to satellite positions and pseudo-ranges'''
     pranges = satinfo.prCorrected
     weights = satelliteWeightings(satinfo)
+
+    # Estimate position and rx clk error
     newpos = positionLeastSquares_ranges(satinfo,
                                          satinfo.prCorrected,
                                          satinfo.lastpos,
@@ -126,6 +128,20 @@ def positionLeastSquares(satinfo):
                                          weights)
     satinfo.lastpos = newpos
     satinfo.receiver_clock_error = newpos.extra
+
+    if satinfo.reference_position is not None:
+        # Estimate rx clk error again if we have position
+        # we still do the above as we use lastpos etc for statistic generation
+        clk_err = clockLeastSquares_ranges(satinfo.eph,
+                                           satinfo.prCorrected,
+                                           satinfo.raw.itow,
+                                           ref_pos,
+                                           0,
+                                           weights)
+
+        satinfo.receiver_clock_error = clk_err
+
+
     return newpos
 
 
