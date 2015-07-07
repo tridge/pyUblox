@@ -234,8 +234,8 @@ def saveObject(filename, object):
     h = open(filename + '.tmp', mode='wb')
     pickle.dump(object, h)
     h.close()
-    os.rename(filename + '.tmp', filename)
-
+    import shutil
+    shutil.move(filename + '.tmp', filename)
 
 def loadObject(filename):
     '''load an object from a file'''
