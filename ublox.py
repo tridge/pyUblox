@@ -625,12 +625,13 @@ class UBlox:
 
     port can be a file (for reading only) or a serial device
     '''
-    def __init__(self, port, baudrate=115200, timeout=0):
+    def __init__(self, port, baudrate=115200, timeout=0, useSpi=False):
 
         self.serial_device = port
         self.baudrate = baudrate
         self.use_sendrecv = False
         self.read_only = False
+        self.use_xfer = False
         self.debug_level = 0
 
         if self.serial_device.startswith("tcp:"):
@@ -645,6 +646,11 @@ class UBlox:
         elif os.path.isfile(self.serial_device):
             self.read_only = True
             self.dev = open(self.serial_device, mode='rb')
+        elif useSpi:
+            import spidev
+            self.use_xfer = True
+            self.dev = spidev.SpiDev()
+            self.dev.open(0, 0)
         else:
             import serial
             self.dev = serial.Serial(self.serial_device, baudrate=self.baudrate,
@@ -714,6 +720,11 @@ class UBlox:
         if not self.read_only:
             if self.use_sendrecv:
                 return self.dev.send(buf)
+            elif self.use_xfer:
+                spiBuf = []
+                for b in buf:
+                    spiBuf.append(ord(b))
+                return self.dev.xfer2(spiBuf)
             return self.dev.write(buf)
 
     def read(self, n):
@@ -724,6 +735,8 @@ class UBlox:
                 return self.dev.recv(n)
             except socket.error as e:
                 return ''
+        if self.use_xfer:
+            return self.dev.readbytes(n)
         return self.dev.read(n)
 
     def send_nmea(self, msg):
@@ -783,6 +796,8 @@ class UBlox:
                     time.sleep(0.01)
                     continue
                 return None
+            if self.use_xfer:
+                b = "".join([chr(c) for c in b])
             msg.add(b)
             if self.log is not None:
                 self.log.write(b)
