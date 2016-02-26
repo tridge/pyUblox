@@ -56,6 +56,8 @@ MSG_RXM_SVSI   = 0x20
 MSG_RXM_EPH    = 0x31
 MSG_RXM_ALM    = 0x30
 MSG_RXM_PMREQ  = 0x41
+MSG_RXM_SFRBX  = 0x13
+MSG_RXM_RAWX   = 0x15
 
 # AID messages
 MSG_AID_ALM    = 0x30
@@ -424,6 +426,18 @@ msg_types = {
                                                   'numSV',
                                                   '<ddfBbbB',
                                                   ['cpMes', 'prMes', 'doMes', 'sv', 'mesQI', 'cno', 'lli']),
+    (CLASS_RXM, MSG_RXM_RAWX)   : UBloxDescriptor('RXM_RAWX',
+                                                  '<dHbBB3B',
+                                                  ['rcvTow', 'week', 'leapS', 'numMeas', 'recStat', 'reserved1[3]'],
+                                                  'numMeas',
+                                                  '<ddfBBBBHBBBBBB',
+                                                  ['prMes', 'cpMes', 'doMes', 'gnssId', 'svId', 'reserved2', 'freqId', 'locktime', 'cno', 'prStdev', 'cpStdev', 'doStdev', 'trkStat', 'reserved3']),
+    (CLASS_RXM, MSG_RXM_SFRBX)  : UBloxDescriptor('RXM_SFRBX',
+                                                  '<BBBBBBBB',
+                                                  ['gnssId', 'svid', 'reserved1', 'freqId', 'numWords', 'reserved2', 'version', 'reserved3'],
+                                                  'numWords',
+                                                  '<L',
+                                                  ['dwrd']),
     (CLASS_RXM, MSG_RXM_SFRB)  : UBloxDescriptor('RXM_SFRB',
                                                   '<BB10I',
                                                   ['chn', 'svid', 'dwrd[10]']),
