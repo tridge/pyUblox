@@ -97,6 +97,7 @@ MSG_CFG_TMODE2 = 0x3D
 MSG_CFG_TMODE = 0x1D
 MSG_CFG_TPS = 0x31
 MSG_CFG_TP = 0x07
+MSG_CFG_GNSS = 0x3E
 
 # ESF messages
 MSG_ESF_MEAS   = 0x02
@@ -346,6 +347,19 @@ msg_types = {
     (CLASS_CFG, MSG_CFG_RST)    : UBloxDescriptor('CFG_RST',
                                                   '<HBB',
                                                   ['navBbrMask ', 'resetMode', 'reserved1']),
+    (CLASS_CFG, MSG_CFG_SBAS)   : UBloxDescriptor('CFG_SBAS',
+                                                  '<BBBBI',
+                                                  ['mode', 'usage', 'maxSBAS', 'scanmode2', 'scanmode1']),
+    (CLASS_CFG, MSG_CFG_GNSS)   : UBloxDescriptor('CFG_GNSS',
+                                                  '<BBBBBBBBI',
+                                                  ['msgVer', 'numTrkChHw', 'numTrkChUse', 'numConfigBlocks', 'gnssId',
+                                                   'resTrkCh', 'maxTrkCh', 'resetved1', 'flags']),
+    (CLASS_CFG, MSG_CFG_RATE)   : UBloxDescriptor('CFG_RATE',
+                                                  '<HHH',
+                                                  ['measRate', 'navRate', 'timeRef']),
+    (CLASS_CFG, MSG_CFG_MSG)    : UBloxDescriptor('CFG_MSG',
+                                                  '<BB6B',
+                                                  ['msgClass', 'msgId', 'rates[6]']),
     (CLASS_NAV, MSG_NAV_POSLLH) : UBloxDescriptor('NAV_POSLLH',
                                                   '<IiiiiII', 
                                                   ['iTOW', 'Longitude', 'Latitude', 'height', 'hMSL', 'hAcc', 'vAcc']),
@@ -455,6 +469,10 @@ msg_types = {
 						   'VP[25]',                                                  
 						   'jamInd', 'reserved3', 'pinInq',
 						   'pullH', 'pullL']),
+    (CLASS_MON, MSG_MON_HW2)    : UBloxDescriptor('MON_HW2',
+                                                  '<bBbBB3BI8BI4B',
+                                                  ['ofsI', 'magI', 'ofsQ', 'magQ', 'cfgSource', 'reserved1[3]',
+                                                   'lowLevCfg', 'reserved2[8]', 'postStatus', 'reserved3[4]']),
     (CLASS_MON, MSG_MON_SCHD)   : UBloxDescriptor('MON_SCHD',
                                                   '<IIIIHHHBB',
                                                   ['tskRun', 'tskSchd', 'tskOvrr', 'tskReg', 'stack',
@@ -475,7 +493,9 @@ msg_types = {
     (CLASS_TIM, MSG_TIM_SVIN)   : UBloxDescriptor('TIM_SVIN',
                                                   '<IiiiIIBBH',
                                                   ['dur', 'meanX', 'meanY', 'meanZ', 'meanV',
-                                                   'obs', 'valid', 'active', 'reserved1'])
+                                                   'obs', 'valid', 'active', 'reserved1']),
+    (CLASS_INF, MSG_INF_ERROR)  : UBloxDescriptor('INF_ERR', '<18s', ['str']),
+    (CLASS_INF, MSG_INF_DEBUG)  : UBloxDescriptor('INF_DEBUG', '<18s', ['str'])
 }
 
 
@@ -734,7 +754,13 @@ class UBlox:
     def set_binary(self):
 	'''put a UBlox into binary mode using a NMEA string'''
         if not self.read_only:
+            print("try set binary at %u" % self.baudrate)
+            self.send_nmea("$PUBX,41,0,0007,0001,%u,0" % self.baudrate)
             self.send_nmea("$PUBX,41,1,0007,0001,%u,0" % self.baudrate)
+            self.send_nmea("$PUBX,41,2,0007,0001,%u,0" % self.baudrate)
+            self.send_nmea("$PUBX,41,3,0007,0001,%u,0" % self.baudrate)
+            self.send_nmea("$PUBX,41,4,0007,0001,%u,0" % self.baudrate)
+            self.send_nmea("$PUBX,41,5,0007,0001,%u,0" % self.baudrate)
 
     def seek_percent(self, pct):
 	'''seek to the given percentage of a file'''
