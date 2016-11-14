@@ -32,6 +32,7 @@ MSG_ACK_ACK = 0x01
 # NAV messages
 MSG_NAV_POSECEF   = 0x1
 MSG_NAV_POSLLH    = 0x2
+MSG_NAV_HPPOSLLH  = 0x14 
 MSG_NAV_STATUS    = 0x3
 MSG_NAV_DOP       = 0x4
 MSG_NAV_SOL       = 0x6
@@ -48,10 +49,14 @@ MSG_NAV_DOP       = 0x04
 MSG_NAV_EKFSTATUS = 0x40
 MSG_NAV_SBAS      = 0x32
 MSG_NAV_SOL       = 0x06
+MSG_NAV_SVIN      = 0x3B
+MSG_NAV_RELPOSNED = 0x3C
 
 # RXM messages
 MSG_RXM_RAW    = 0x10
+MSG_RXM_RAWX   = 0x15
 MSG_RXM_SFRB   = 0x11
+MSG_RXM_SFRBX  = 0x13
 MSG_RXM_SVSI   = 0x20
 MSG_RXM_EPH    = 0x31
 MSG_RXM_ALM    = 0x30
@@ -363,6 +368,10 @@ msg_types = {
     (CLASS_NAV, MSG_NAV_POSLLH) : UBloxDescriptor('NAV_POSLLH',
                                                   '<IiiiiII', 
                                                   ['iTOW', 'Longitude', 'Latitude', 'height', 'hMSL', 'hAcc', 'vAcc']),
+    (CLASS_NAV, MSG_NAV_HPPOSLLH):UBloxDescriptor('NAV_HPPOSLLH',
+						  '<B3BLllllccccLL',
+						  ['version','reserved1[3]','iTOW','lon','lat','height','hMSL','lonHp','latHp','heightHp','hMSLHp','hAcc','vAcc']),
+
     (CLASS_NAV, MSG_NAV_VELNED) : UBloxDescriptor('NAV_VELNED',
                                                   '<IiiiIIiII', 
                                                   ['iTOW', 'velN', 'velE', 'velD', 'speed', 'gSpeed', 'heading', 
@@ -415,6 +424,12 @@ msg_types = {
                                                   'numCh',
                                                   '<BBBBBbhi',
                                                   ['chn', 'svid', 'flags', 'quality', 'cno', 'elev', 'azim', 'prRes']),
+    (CLASS_NAV, MSG_NAV_SVIN)   : UBloxDescriptor('NAV_SVIN',
+                                                  '<B3BLLlllbbbBLLBB2B',
+                                                  ['version','reserved1[3]','iTOW','dur','meanX','meanY','meanZ','meanXHP','meanYHP','meanZHP','reserved2','meanAcc','obs','valid','active','reserved3[2]']),
+    (CLASS_NAV, MSG_NAV_RELPOSNED):UBloxDescriptor('NAV_RELPOSNED',
+                                                  '<BBHLlllbbbBLLLL',
+                                                  ['version','reserved1','refStationId','iTOW','relPosN','relPosE','relPosD','relPosHPN','relPosHPE','relPosHPD','reserved2','accN','accE','accD','flags']),
     (CLASS_RXM, MSG_RXM_SVSI)   : UBloxDescriptor('RXM_SVSI',
                                                   '<IhBB',
                                                   ['iTOW', 'week', 'numVis', 'numSV'],
@@ -438,9 +453,21 @@ msg_types = {
                                                   'numSV',
                                                   '<ddfBbbB',
                                                   ['cpMes', 'prMes', 'doMes', 'sv', 'mesQI', 'cno', 'lli']),
+    (CLASS_RXM, MSG_RXM_RAWX)  : UBloxDescriptor('RXM_RAWX',
+                                                  '<dHbBBB2B',
+                                                  ['rcvTow','week','leapS','numMeas','recStat','version','reserved1[2]'],
+                                                  'numMeas',
+                                                  '<ddfBBBBHBBBBBB',
+                                                  ['prMes','cpMes','doMes','gnssId','svId','reserverd2','freqId','locktime','cno','prStdev','cpStdev','doStdev','trkStat','reserved3']),
     (CLASS_RXM, MSG_RXM_SFRB)  : UBloxDescriptor('RXM_SFRB',
                                                   '<BB10I',
                                                   ['chn', 'svid', 'dwrd[10]']),
+    (CLASS_RXM, MSG_RXM_SFRBX) : UBloxDescriptor('RXM_SFRBX',
+                                                  '<BBBBBBBB',
+                                                  ['gnssId','svId','reserved','freqId','numWords','reserved2','version','reserved3'],
+                                                  'numWords',
+                                                  '<L',
+                                                  ['dwrd']),
     (CLASS_AID, MSG_AID_ALM)   : UBloxDescriptor('AID_ALM',
                                                   '<II',
                                                  '_remaining',
