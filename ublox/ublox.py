@@ -212,7 +212,7 @@ class UBloxDescriptor:
         for fmt in formats:
             size1 = struct.calcsize(fmt)
             if size1 > len(buf):
-                raise UBloxError("%s INVALID_SIZE1=%u" % (self.name, len(buf)))
+                raise UBloxError("%s INVALID_SIZE1: %u>%u" % (self.name, size1, len(buf)))
             f1 = list(struct.unpack(fmt, buf[:size1]))
             i = 0
             while i < len(f1):
