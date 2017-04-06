@@ -18,6 +18,9 @@ parser.add_option("--dots", action='store_true', default=False, help='print a do
 
 
 (opts, args) = parser.parse_args()
+if len(args):
+    print("ublox_capture.py has no positional arguments")
+    sys.exit(1)
 
 dev = ublox.UBlox(opts.port, baudrate=opts.baudrate, timeout=2)
 dev.set_logfile(opts.log, append=opts.append)
