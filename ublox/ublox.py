@@ -36,6 +36,7 @@ MSG_NAV_POSLLH    = 0x2
 MSG_NAV_STATUS    = 0x3
 MSG_NAV_DOP       = 0x4
 MSG_NAV_SOL       = 0x6
+MSG_NAV_PVT       = 0x7
 MSG_NAV_POSUTM    = 0x8
 MSG_NAV_VELNED    = 0x12
 MSG_NAV_VELECEF   = 0x11
@@ -378,6 +379,11 @@ msg_types = {
                                                   ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
                                                    'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
                                                    'numSV', 'reserved2']),
+    (CLASS_NAV, MSG_NAV_PVT)    : UBloxDescriptor('NAV_PVT',
+                                                  '<IHBBBBBBIiBBBBiiiiIIiiiiiIIH6Bi4B',
+                                                  ["iTOW","year","month","day","hour","min","sec","valid","tAcc","nano","fixType",
+                                                   "flags","flags2","numSV","lon","lat","height","hMSL","hAcc","vAcc","velN","velE",
+                                                   "velD","gSpeed","headMot","sAcc","headAcc","pDOP","reserved1[6]","headVeh","reserved2[4]"]),
     (CLASS_NAV, MSG_NAV_POSUTM) : UBloxDescriptor('NAV_POSUTM',
                                                   '<Iiiibb',
                                                   ['iTOW', 'East', 'North', 'Alt', 'Zone', 'Hem']),
