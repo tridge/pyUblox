@@ -47,7 +47,6 @@ MSG_NAV_DGPS      = 0x31
 MSG_NAV_DOP       = 0x04
 MSG_NAV_EKFSTATUS = 0x40
 MSG_NAV_SBAS      = 0x32
-MSG_NAV_SOL       = 0x06
 
 # RXM messages
 MSG_RXM_RAW    = 0x10
