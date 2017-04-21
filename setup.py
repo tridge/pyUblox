@@ -5,6 +5,11 @@ import glob
 
 version = '0.1.0'
 
+scripts = []
+scripts.extend(glob.glob('ublox/tools/*.py'))
+scripts.extend(glob.glob('ublox/mga/tools/*.py'))
+scripts.extend(glob.glob('ublox/mga/offline/tools/*.py'))
+
 setuptools.setup(
     name = 'pyublox',
     version = version,
@@ -23,11 +28,14 @@ setuptools.setup(
     license='GPLv3',
     packages = [ 'ublox',
                  'ublox.util',
+                 'ublox.mga',
+                 'ublox.mga.dbd',
+                 'ublox.mga.offline',
     ],
     install_requires=[
         'future',
     ],
-    scripts=glob.glob('ublox/tools/*.py'),
+    scripts=scripts,
     entry_points = {
         "console_scripts": [
         ],

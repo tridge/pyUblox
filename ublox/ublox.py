@@ -24,7 +24,7 @@ CLASS_CFG = 0x06
 CLASS_MON = 0x0A
 CLASS_AID = 0x0B
 CLASS_TIM = 0x0D
-CLASS_ESF = 0x10
+CLASS_MGA = 0x13
 
 # ACK messages
 MSG_ACK_NACK = 0x00
@@ -128,6 +128,18 @@ MSG_TIM_TM2  = 0x03
 MSG_TIM_SVIN = 0x04
 MSG_TIM_VRFY = 0x06
 
+# MGA messages
+MSG_MGA_ANO  = 0x20
+MSG_MGA_INI_TIME_UTC  = 0x40
+MSG_MGA_INI_POS_LLH  = 0x40
+MSG_MGA_ACK  = 0x60
+MSG_MGA_DBD  = 0x80
+MSG_MGA_INI_MSGS = [MSG_MGA_INI_TIME_UTC, MSG_MGA_INI_POS_LLH]
+
+# MGA-INI types
+MSG_MGA_INI_TYPE_POS_LLH = 0x01
+MSG_MGA_INI_TYPE_TIME_UTC = 0x10
+
 # port IDs
 PORT_DDC    =0
 PORT_SERIAL1=1
@@ -210,7 +222,6 @@ class UBloxDescriptor:
         count = 0
         msg._recs = []
         fields = self.fields[:]
-        
         for fmt in formats:
             size1 = struct.calcsize(fmt)
             if size1 > len(buf):
@@ -464,7 +475,7 @@ msg_types = {
                                                   '<HHIBBBBBBBBBBHIBBBBBBHII',
                                                   ['version', 'mask1', 'reserved0', 'reserved1', 'reserved2',
                                                    'minSVs', 'maxSVs', 'minCNO', 'reserved5', 'iniFix3D', 
-                                                   'reserved6', 'reserved7', 'reserved8', 'wknRollover',
+                                                   'reserved6', 'reserved7', 'ackAiding', 'wknRollover',
                                                    'reserved9', 'reserved10', 'reserved11',
                                                    'usePPP', 'useAOP', 'reserved12', 'reserved13', 
                                                    'aopOrbMaxErr', 'reserved3', 'reserved4']),
@@ -497,9 +508,27 @@ msg_types = {
                                                   ['dur', 'meanX', 'meanY', 'meanZ', 'meanV',
                                                    'obs', 'valid', 'active', 'reserved1']),
     (CLASS_INF, MSG_INF_ERROR)  : UBloxDescriptor('INF_ERR', '<18s', ['str']),
-    (CLASS_INF, MSG_INF_DEBUG)  : UBloxDescriptor('INF_DEBUG', '<18s', ['str'])
-}
+    (CLASS_INF, MSG_INF_DEBUG)  : UBloxDescriptor('INF_DEBUG', '<18s', ['str']),
 
+    (CLASS_MGA, MSG_MGA_ACK)  : UBloxDescriptor('MGA_ACK',
+                                                '<BBBB4B',
+                                                ["type","version","infoCode","msgId","msgPayloadStart[4]"]),
+    (CLASS_MGA, MSG_MGA_INI_TIME_UTC, MSG_MGA_INI_TYPE_TIME_UTC)  : UBloxDescriptor('MGA_INIT_TIME_UTC',
+                                                '<BBBbHBBBBBBIH2BI',
+                                                ["type","version","ref","leapSecs","year","month","day","hour","minute","second","reserved1","ns","tAccS","reserved2[2]","tAccNs"]),
+    (CLASS_MGA, MSG_MGA_INI_POS_LLH, MSG_MGA_INI_TYPE_POS_LLH) : UBloxDescriptor('MGA_INIT_POS_LLH',
+                                                       '<BB2BiiiI',
+                                                       ["type","version","reserved1[2]","lat","lon","alt","posAcc"]),
+    (CLASS_MGA, MSG_MGA_DBD)  : UBloxDescriptor('MGA_DBD',
+                                                '<12B',
+                                                ['reserved1[12]'],
+                                                '_remaining',
+                                                'B',
+                                                ['data']),
+    (CLASS_MGA, MSG_MGA_ANO)  : UBloxDescriptor('MGA_ANO',
+                                                '<BBBBBBBB64B4B',
+                                                ["type","version","svId","gnssId","year","month","day","reserved1","data[64]","reserved2[4]"]),
+}
 
 class UBloxMessage:
     '''UBlox message class - holds a UBX binary message'''
@@ -807,12 +836,18 @@ class UBlox:
                 self.send(msg)
                 if pollit:
                     self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
-        if msg.name() == 'CFG_NAVX5' and self.preferred_usePPP is not None:
+        if msg.name() == 'CFG_NAVX5':
             msg.unpack()
-            if msg.usePPP != self.preferred_usePPP:
-                msg.usePPP = self.preferred_usePPP
-                msg.mask = 1<<13
+            if (((self.preferred_usePPP is not None) and msg.usePPP != self.preferred_usePPP)
+                or msg.ackAiding != 1):
+                mask = 0
+                if self.preferred_usePPP is not None:
+                    msg.usePPP = self.preferred_usePPP
+                    mask = mask|1<<13
+                msg.ackAiding = 1
+                msg.mask = mask|1<<10
                 msg.pack()
+                print("Sending config")
                 self.send(msg)
                 self.configure_poll(CLASS_CFG, MSG_CFG_NAVX5)
 
