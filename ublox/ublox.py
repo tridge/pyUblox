@@ -781,6 +781,12 @@ class UBlox:
 
     def special_handling(self, msg):
         '''handle automatic configuration changes'''
+        try:
+            x = msg.name()
+        except UBloxError as e:
+            # ignore "ublox.ublox.UBloxError: Unknown message (0x00 0x00)  length=8"
+            return
+
         if msg.name() == 'CFG_NAV5':
             msg.unpack()
             sendit = False
