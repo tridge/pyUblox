@@ -1,6 +1,7 @@
 from __future__ import absolute_import, print_function
 
 import setuptools
+import glob
 
 version = '0.1.0'
 
@@ -26,6 +27,7 @@ setuptools.setup(
     install_requires=[
         'future',
     ],
+    scripts=glob.glob('ublox/tools/*.py'),
     entry_points = {
         "console_scripts": [
         ],
