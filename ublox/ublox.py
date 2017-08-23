@@ -9,6 +9,7 @@ Released under GNU GPL version 3 or later
 import struct
 from datetime import datetime
 import time, os
+import StringIO
 
 # protocol constants
 PREAMBLE1 = 0xb5
@@ -652,7 +653,10 @@ class UBlox:
         self.read_only = False
         self.debug_level = 0
 
-        if self.serial_device.startswith("tcp:"):
+        if isinstance(self.serial_device, file) or isinstance(self.serial_device, StringIO.StringIO):
+            self.dev = self.serial_device
+            self.read_only = True
+        elif self.serial_device.startswith("tcp:"):
             import socket
             a = self.serial_device.split(':')
             destination_addr = (a[1], int(a[2]))
