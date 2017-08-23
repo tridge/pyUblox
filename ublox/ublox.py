@@ -678,6 +678,15 @@ class UBlox:
         self.preferred_usePPP = None
         self.preferred_dgps_timeout = None
 
+    @staticmethod
+    def pack_message(msg_class, msg_id, payload):
+        msg = UBloxMessage()
+        msg._buf = struct.pack('<BBBBH', 0xb5, 0x62, msg_class, msg_id, len(payload))
+        msg._buf += payload
+        (ck_a, ck_b) = msg.checksum(msg._buf[2:])
+        msg._buf += struct.pack('<BB', ck_a, ck_b)
+        return msg
+
     def close(self):
 	'''close the device'''
         self.dev.close()
@@ -843,11 +852,7 @@ class UBlox:
 
     def send_message(self, msg_class, msg_id, payload):
 	'''send a ublox message with class, id and payload'''
-        msg = UBloxMessage()
-        msg._buf = struct.pack('<BBBBH', 0xb5, 0x62, msg_class, msg_id, len(payload))
-        msg._buf += payload
-        (ck_a, ck_b) = msg.checksum(msg._buf[2:])
-        msg._buf += struct.pack('<BB', ck_a, ck_b)
+        msg = self.pack_message(msg_class, msg_id, payload)
         self.send(msg)
 
     def configure_solution_rate(self, rate_ms=200, nav_rate=1, timeref=0):
