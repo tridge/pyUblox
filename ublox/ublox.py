@@ -547,7 +547,7 @@ class UBloxMessage:
             raise UBloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self._buf)))
+            raise UBloxError('Unknown message (0x%02x 0x%02x) length=%u' % (type[0], type[1], len(self._buf)))
         msg_types[type].unpack(self)
 
     def pack(self):
@@ -565,7 +565,7 @@ class UBloxMessage:
             raise UbloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
-            raise UBloxError('Unknown message %s length=%u' % (str(type), len(self._buf)))
+            raise UBloxError('Unknown message (0x%02x 0x%02x)  length=%u' % (type[0],type[1], len(self._buf)))
         return msg_types[type].name
 
     def msg_class(self):
