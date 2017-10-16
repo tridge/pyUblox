@@ -35,6 +35,7 @@ MSG_NAV_POSLLH    = 0x2
 MSG_NAV_STATUS    = 0x3
 MSG_NAV_DOP       = 0x4
 MSG_NAV_SOL       = 0x6
+MSG_NAV_PVT 	  = 0x7
 MSG_NAV_POSUTM    = 0x8
 MSG_NAV_VELNED    = 0x12
 MSG_NAV_VELECEF   = 0x11
@@ -47,7 +48,9 @@ MSG_NAV_DGPS      = 0x31
 MSG_NAV_DOP       = 0x04
 MSG_NAV_EKFSTATUS = 0x40
 MSG_NAV_SBAS      = 0x32
-MSG_NAV_SOL       = 0x06
+MSG_NAV_ORB 	  = 0x34
+MSG_NAV_SAT       = 0x35
+MSG_NAV_TIMEGAL   = 0x25
 
 # RXM messages
 MSG_RXM_RAW    = 0x10
@@ -56,6 +59,8 @@ MSG_RXM_SVSI   = 0x20
 MSG_RXM_EPH    = 0x31
 MSG_RXM_ALM    = 0x30
 MSG_RXM_PMREQ  = 0x41
+MSG_RXM_SFRBX  = 0x13
+MSG_RXM_RAWX   = 0x15
 
 # AID messages
 MSG_AID_ALM    = 0x30
@@ -378,6 +383,24 @@ msg_types = {
                                                   ['iTOW', 'fTOW', 'week', 'gpsFix', 'flags', 'ecefX', 'ecefY', 'ecefZ',
                                                    'pAcc', 'ecefVX', 'ecefVY', 'ecefVZ', 'sAcc', 'pDOP', 'reserved1', 
                                                    'numSV', 'reserved2']),
+    (CLASS_NAV, MSG_NAV_PVT)    : UBloxDescriptor('NAV_PVT',
+                                                  '<IHBBBBBBIiBBBBiiiiIIiiiiiIIH6Bi4B',
+                                                  ['iTOW', 'year', 'month', 'day', 'hour', 'min', 'sec', 'valid',
+                                                   'tAcc', 'nano', 'fixType', 'flags', 'flags2', 'numSV', 'lon',
+                                                   'lat', 'height', 'hMSL', 'hAcc', 'vAcc', 'velN', 'velE', 'velD', 'gSpeed',
+                                                   'headMot', 'sAcc', 'headAcc', 'pDOP', 'reserved1[6]', 'headVeh', 'reserved2[4]']),
+    (CLASS_NAV, MSG_NAV_ORB)    : UBloxDescriptor('NAV_ORB',
+                                                  '<IBBBB',
+                                                  ['iTOW', 'version', 'numSv', 'reserved01', 'reserved02'],
+                                                  'numSv',
+                                                  'BBBBBB',
+                                                  ['gnssId', 'svId', 'svFlag', 'eph', 'alm', 'otherOrb']),
+    (CLASS_NAV, MSG_NAV_SAT)    : UBloxDescriptor('NAV_SAT',
+                                                  '<IBBBB',
+                                                  ['iTOW', 'version', 'numSvs', 'reserved01', 'reserved02'],
+                                                  'numSvs',
+                                                  'BBBbhhi',
+                                                  ['gnssId', 'svId', 'cno', 'elev', 'azim', 'prRes', 'flags']),
     (CLASS_NAV, MSG_NAV_POSUTM) : UBloxDescriptor('NAV_POSUTM',
                                                   '<Iiiibb',
                                                   ['iTOW', 'East', 'North', 'Alt', 'Zone', 'Hem']),
@@ -400,6 +423,9 @@ msg_types = {
     (CLASS_NAV, MSG_NAV_TIMEUTC): UBloxDescriptor('NAV_TIMEUTC',
                                                   '<IIiHBBBBBB',
                                                   ['iTOW', 'tAcc', 'nano', 'year', 'month', 'day', 'hour', 'min', 'sec', 'valid']),
+    (CLASS_NAV, MSG_NAV_TIMEGAL) : UBloxDescriptor('NAV_TIMEGAL',
+                                                   '<IIihbBI',
+                                                   ['iTOW', 'galTow', 'fGalTow', 'galWno', 'leaps', 'valid', 'tAcc', 'min', 'sec', 'valid']),
     (CLASS_NAV, MSG_NAV_CLOCK)  : UBloxDescriptor('NAV_CLOCK',
                                                   '<IiiII',
                                                   ['iTOW', 'clkB', 'clkD', 'tAcc', 'fAcc']),
@@ -438,6 +464,19 @@ msg_types = {
                                                   'numSV',
                                                   '<ddfBbbB',
                                                   ['cpMes', 'prMes', 'doMes', 'sv', 'mesQI', 'cno', 'lli']),
+    (CLASS_RXM, MSG_RXM_RAWX)  : UBloxDescriptor('RXM_RAWX',
+                                                 '<dHbBB3B',
+                                                 ['rcvTow', 'week', 'leapS', 'numMeas', 'recStat', 'reserved1[3]'],
+                                                 'numMeas',
+                                                 '<ddfBBBBHBBBBBB',
+                                                 ['prMes', 'cpMes', 'doMes', 'gnssId', 'svId', 'reserved2', 'freqId',
+                                                  'locktime', 'cno', 'prStdev', 'cpStdev', 'doStdev', 'trkStat', 'reserved3']),
+    (CLASS_RXM, MSG_RXM_SFRBX) : UBloxDescriptor('RXM_SFRBX',
+                                                 '<BBBBBBBB',
+                                                 ['gnssId', 'svid', 'reserved1', 'freqId', 'numWords', 'reserved2', 'version', 'reserved3'],
+                                                 'numWords',
+                                                 '<L',
+                                                 ['dwrd']),
     (CLASS_RXM, MSG_RXM_SFRB)  : UBloxDescriptor('RXM_SFRB',
                                                   '<BB10I',
                                                   ['chn', 'svid', 'dwrd[10]']),
